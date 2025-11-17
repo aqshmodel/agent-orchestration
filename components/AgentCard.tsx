@@ -1,13 +1,18 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { Agent, Message } from '../types';
 import { TEAM_COLORS } from '../constants';
 
 interface AgentCardProps {
+  id?: string;
   agent: Agent;
   messages: Message[];
   isThinking: boolean;
   finalReportContent?: string | null;
   isCompact?: boolean;
+  isExpanded?: boolean;
+  onExpand?: () => void;
+  onClose?: () => void;
 }
 
 const CodeBlock: React.FC<{ code: string }> = ({ code }) => {
@@ -34,14 +39,21 @@ const CodeBlock: React.FC<{ code: string }> = ({ code }) => {
     );
 };
 
-const AgentCard: React.FC<AgentCardProps> = ({ agent, messages, isThinking, finalReportContent, isCompact }) => {
+const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, finalReportContent, isCompact, isExpanded, onExpand, onClose }) => {
   const teamColor = TEAM_COLORS[agent.team];
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [highlight, setHighlight] = useState(false);
   const prevMessagesLength = useRef(messages.length);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (scrollContainerRef.current) {
+      const { scrollHeight, clientHeight } = scrollContainerRef.current;
+      // Use scrollTop assignment instead of scrollIntoView to prevent scrolling parent containers
+      scrollContainerRef.current.scrollTo({
+        top: scrollHeight - clientHeight,
+        behavior: 'smooth'
+      });
+    }
   };
 
   useEffect(() => {
@@ -111,28 +123,62 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent, messages, isThinking, fina
     });
   };
 
+  // Dynamic height classes
+  const heightClass = isExpanded 
+    ? 'h-full' 
+    : isCompact 
+        ? 'h-auto justify-center' 
+        : 'h-[240px]';
+  
+  // Only show expand button if there are messages or if it's the president/orchestrator with content
+  const showExpandButton = messages.length > 0;
+
   return (
-    <div className={`flex flex-col border ${teamColor.border} rounded-lg ${isCompact ? 'h-auto justify-center' : 'h-[240px]'} glass-effect ${teamColor.bg} ${isThinking && !isCompact ? 'thinking-border-animation' : ''} ${highlight && !isCompact ? 'flash-border-animation' : ''} transition-all duration-300 hover:-translate-y-1`}>
-      <div className={`p-3 ${!isCompact ? `border-b ${teamColor.border}` : ''} flex justify-between items-center`}>
+    <div id={id} className={`flex flex-col border ${teamColor.border} rounded-lg ${heightClass} glass-effect ${teamColor.bg} ${isThinking && !isCompact ? 'thinking-border-animation' : ''} ${highlight && !isCompact ? 'flash-border-animation' : ''} transition-all duration-300 ${!isExpanded ? 'hover:-translate-y-1' : ''}`}>
+      <div className={`p-3 ${!isCompact || isExpanded ? `border-b ${teamColor.border}` : ''} flex justify-between items-center sticky top-0 z-10 ${teamColor.bg.replace('/50', '/90')} backdrop-blur-md rounded-t-lg`}>
         <div>
-          {!isCompact && <p className={`text-xs ${teamColor.text} font-bold opacity-80`}>{agent.team}</p>}
+          {(!isCompact || isExpanded) && <p className={`text-xs ${teamColor.text} font-bold opacity-80`}>{agent.team}</p>}
           <h3 className="font-bold text-sm text-white">{agent.name}</h3>
           <p className={`text-xs ${teamColor.text}`}>{agent.role}</p>
         </div>
-        {finalReportContent && !isCompact && (
-          <button
-            onClick={handleDownload}
-            className="bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors"
-            title="最終レポートをダウンロード"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </button>
-        )}
+        <div className="flex items-center space-x-2">
+            {finalReportContent && (!isCompact || isExpanded) && (
+              <button
+                onClick={handleDownload}
+                className="bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors"
+                title="最終レポートをダウンロード"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            )}
+            {isExpanded && onClose && (
+                 <button
+                    onClick={onClose}
+                    className="text-gray-300 hover:text-white transition-colors p-1"
+                    title="閉じる"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+            )}
+            {!isExpanded && onExpand && showExpandButton && (
+                <button
+                    onClick={onExpand}
+                    className="text-gray-400 hover:text-white transition-colors p-1"
+                    title="拡大"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                    </svg>
+                </button>
+            )}
+        </div>
       </div>
-      {!isCompact && (
-        <div className="flex-grow p-3 overflow-y-auto text-sm space-y-2 relative min-h-0">
+      {(!isCompact || isExpanded) && (
+        <div ref={scrollContainerRef} className="flex-grow p-3 overflow-y-auto text-sm space-y-2 relative min-h-0">
             {messages.map((msg, index) => (
             <div key={index} className={`${msg.sender === 'user' ? 'text-cyan-300' : 'text-gray-200'}`}>
                 <p className="font-mono text-xs text-gray-500">{msg.timestamp}</p>
@@ -140,7 +186,6 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent, messages, isThinking, fina
             </div>
             ))}
             {isThinking && <TypingIndicator />}
-            <div ref={messagesEndRef} />
         </div>
       )}
     </div>

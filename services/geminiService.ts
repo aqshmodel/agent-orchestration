@@ -9,37 +9,92 @@ if (!API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
+type Part = { text: string } | { inlineData: { mimeType: string; data: string } };
+
+const buildContents = (prompt: string, context?: string, imageBase64?: string) => {
+  const fullPrompt = context
+    ? `以下は、あなたへの今回のタスク指示の前に共有された、プロジェクト全体のコンテキストログです。必ずこれを完全に理解した上で、タスクを実行してください。\n\n--- プロジェクト共有コンテキスト ---\n${context}\n\n--- 今回のあなたのタスク ---\n${prompt}`
+    : prompt;
+
+  const parts: Part[] = [];
+  
+  if (imageBase64) {
+    // Extract mimeType and data from base64 string (e.g., "data:image/png;base64,ABC...")
+    const match = imageBase64.match(/^data:(.+);base64,(.+)$/);
+    if (match) {
+      parts.push({
+        inlineData: {
+          mimeType: match[1],
+          data: match[2],
+        },
+      });
+    }
+  }
+
+  parts.push({ text: fullPrompt });
+
+  return parts;
+};
+
 export const generateResponse = async (
   systemPrompt: string,
   prompt: string,
   context?: string,
   modelName: 'gemini-2.5-pro' | 'gemini-2.5-flash' = 'gemini-2.5-pro',
-  useSearch: boolean = false
+  useSearch: boolean = false,
+  imageBase64?: string
 ): Promise<string> => {
   try {
-    // コンテキストが提供された場合、それをプロンプトに結合して全体像をエージェントに渡す
-    const fullPrompt = context
-      ? `以下は、あなたへの今回のタスク指示の前に共有された、プロジェクト全体のコンテキストログです。必ずこれを完全に理解した上で、タスクを実行してください。\n\n--- プロジェクト共有コンテキスト ---\n${context}\n\n--- 今回のあなたのタスク ---\n${prompt}`
-      : prompt;
+    const contents = buildContents(prompt, context, imageBase64);
 
     const response = await ai.models.generateContent({
       model: modelName,
-      contents: fullPrompt,
+      contents: { parts: contents }, // Correct structure for @google/genai
       config: {
         systemInstruction: systemPrompt,
         tools: useSearch ? [{ googleSearch: {} }] : undefined,
       },
     });
-    // response.text can be undefined if the response is blocked.
-    // Return empty string to prevent downstream errors (e.g. .trim()).
     const text = response.text;
     return text || "";
   } catch (error) {
     console.error("Error generating response:", error);
-    // エラー文字列を返すのではなく、エラーを再スローします。
-    // これにより、App.tsxの呼び出し元関数がエラーを捕捉し、
-    // 適切なエージェントカードにシステムメッセージを表示し、
-    // 詳細なエラーをエラーログモーダルに追加することができます。
+    throw error;
+  }
+};
+
+export const generateResponseStream = async (
+  systemPrompt: string,
+  prompt: string,
+  onChunk: (text: string) => void,
+  context?: string,
+  modelName: 'gemini-2.5-pro' | 'gemini-2.5-flash' = 'gemini-2.5-pro',
+  useSearch: boolean = false,
+  imageBase64?: string
+): Promise<string> => {
+  try {
+    const contents = buildContents(prompt, context, imageBase64);
+
+    const responseStream = await ai.models.generateContentStream({
+      model: modelName,
+      contents: { parts: contents },
+      config: {
+        systemInstruction: systemPrompt,
+        tools: useSearch ? [{ googleSearch: {} }] : undefined,
+      },
+    });
+
+    let fullText = "";
+    for await (const chunk of responseStream) {
+      const text = chunk.text;
+      if (text) {
+        fullText += text;
+        onChunk(fullText);
+      }
+    }
+    return fullText;
+  } catch (error) {
+    console.error("Error generating response stream:", error);
     throw error;
   }
 };

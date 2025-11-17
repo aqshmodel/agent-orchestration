@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { AGENTS } from './constants';
 import { Agent, Message, Team } from './types';
@@ -6,8 +7,9 @@ import UserInput from './components/UserInput';
 import Toast from './components/Toast';
 import QuestionModal from './components/QuestionModal';
 import ErrorLogModal from './components/ErrorLogModal';
-import { generateResponse } from './services/geminiService';
+import { generateResponse, generateResponseStream } from './services/geminiService';
 import { TEAM_COLORS } from './constants';
+import { playStartSound, playNotificationSound, playCompletionSound } from './services/soundService';
 
 
 type ToastMessage = {
@@ -19,6 +21,8 @@ type ErrorLog = {
   timestamp: string;
   message: string;
 };
+
+type SystemStatus = 'idle' | 'processing' | 'waiting' | 'completed' | 'error';
 
 const App: React.FC = () => {
   const getJSTTimestamp = () => new Date().toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo', hour12: false });
@@ -42,9 +46,29 @@ const App: React.FC = () => {
   const [errorLogs, setErrorLogs] = useState<ErrorLog[]>([]);
   const [isErrorLogModalOpen, setIsErrorLogModalOpen] = useState<boolean>(false);
   const [selectedAgents, setSelectedAgents] = useState<Set<string>>(new Set());
+  const [expandedAgentId, setExpandedAgentId] = useState<string | null>(null);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus>('idle');
   
   const conversationHistoryRef = useRef<string>('');
   const isOrchestrationRunning = useRef<boolean>(false);
+
+  // Dynamic Background Logic
+  const getBackgroundGradient = (status: SystemStatus) => {
+    switch (status) {
+      case 'idle':
+        return 'bg-gradient-to-br from-gray-900 via-slate-900 to-blue-950';
+      case 'processing':
+        return 'bg-gradient-to-br from-gray-900 via-indigo-950 to-purple-950';
+      case 'waiting':
+        return 'bg-gradient-to-br from-gray-900 via-gray-800 to-amber-950';
+      case 'completed':
+        return 'bg-gradient-to-br from-gray-900 via-teal-950 to-emerald-950';
+      case 'error':
+        return 'bg-gradient-to-br from-gray-900 via-red-950 to-pink-950';
+      default:
+        return 'bg-gradient-to-br from-gray-900 via-slate-900 to-blue-950';
+    }
+  };
 
   useEffect(() => {
     if (toast) {
@@ -65,6 +89,20 @@ const App: React.FC = () => {
     setToast({ message: "A.G.I.S.へようこそ。指示を開始してください。", type: "info" });
   }, []);
 
+  // Scroll to thinking agent
+  useEffect(() => {
+    const thinkingAgentIds = Array.from(thinkingAgents);
+    if (thinkingAgentIds.length > 0) {
+      const latestAgentId = thinkingAgentIds[thinkingAgentIds.length - 1];
+      if (latestAgentId !== 'president' && latestAgentId !== 'orchestrator') {
+        const element = document.getElementById(`agent-card-${latestAgentId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
+    }
+  }, [thinkingAgents]);
+
   const addErrorLog = (errorMessage: string) => {
     const newLog: ErrorLog = {
       timestamp: new Date().toISOString(),
@@ -80,13 +118,13 @@ const App: React.FC = () => {
       return updatedLogs;
     });
     setToast({ message: "エラーが発生しました。ログを確認してください。", type: "error" });
+    setSystemStatus('error');
   };
   
   const addMessage = (agentId: string, message: Omit<Message, 'timestamp'>) => {
     const content = message.content;
     const senderName = message.sender === 'user' ? 'User' : AGENTS.find(a => a.id === agentId)?.name || 'System';
     
-    // 誰からのメッセージかをより明確にするためのヘッダーを生成
     let historyHeader;
     if (message.sender === 'user' && agentId === 'orchestrator') {
       historyHeader = `--- ユーザーからの回答 ---`;
@@ -98,6 +136,21 @@ const App: React.FC = () => {
     
     conversationHistoryRef.current += `\n\n${historyHeader}\n${content}`;
     setMessages(prev => ({ ...prev, [agentId]: [...(prev[agentId] || []), { ...message, timestamp: getJSTTimestamp() }] }));
+  };
+
+  const updateAgentLastMessage = (agentId: string, content: string) => {
+    setMessages(prev => {
+      const agentMessages = prev[agentId] || [];
+      if (agentMessages.length === 0) return prev;
+
+      const lastMessage = agentMessages[agentMessages.length - 1];
+      const updatedMessage = { ...lastMessage, content };
+      
+      return {
+        ...prev,
+        [agentId]: [...agentMessages.slice(0, -1), updatedMessage]
+      };
+    });
   };
 
   const setAgentThinking = (agentId: string, isThinking: boolean) => {
@@ -120,6 +173,8 @@ const App: React.FC = () => {
     conversationHistoryRef.current = '';
     isOrchestrationRunning.current = false;
     setSelectedAgents(new Set());
+    setExpandedAgentId(null);
+    setSystemStatus('idle');
   };
 
   const parsePresidentInitialResponse = (response: string): { directive: string; team: string[] } => {
@@ -129,22 +184,43 @@ const App: React.FC = () => {
     return { directive, team };
   };
   
-  const handleSendMessage = async (prompt: string) => {
+  const handleSendMessage = async (prompt: string, imageBase64?: string) => {
     resetState();
     setIsLoading(true);
     isOrchestrationRunning.current = true;
-    const initialUserPrompt = `ユーザーからの最初の指示: ${prompt}`;
+    setSystemStatus('processing');
+    playStartSound(); // Sonic Interface: Start
+
+    const initialUserPrompt = imageBase64 
+        ? `ユーザーからの最初の指示: ${prompt} (画像が添付されています)`
+        : `ユーザーからの最初の指示: ${prompt}`;
     conversationHistoryRef.current = initialUserPrompt;
 
     addMessage('president', { sender: 'user', content: prompt });
+    if (imageBase64) {
+        setToast({ message: "画像付きの指示を送信しました。", type: "info" });
+    }
 
     try {
       setCurrentStatus('プレジデントがチームを編成し、戦略を立案しています...');
       setAgentThinking('president', true);
+      
+      addMessage('president', { sender: 'agent', content: '' });
+      
       const president = AGENTS.find(a => a.id === 'president')!;
-      const presidentResponse = await generateResponse(president.systemPrompt, prompt, undefined, 'gemini-2.5-flash', true);
+      const presidentResponse = await generateResponseStream(
+          president.systemPrompt, 
+          prompt, 
+          (chunk) => updateAgentLastMessage('president', chunk),
+          undefined, 
+          'gemini-2.5-flash', 
+          true,
+          imageBase64
+      );
+      
+      conversationHistoryRef.current += `\n\n--- President ---\n${presidentResponse}`;
+
       setAgentThinking('president', false);
-      addMessage('president', { sender: 'agent', content: presidentResponse });
 
       const { directive, team } = parsePresidentInitialResponse(presidentResponse);
       const teamAgentIds = team
@@ -167,6 +243,7 @@ const App: React.FC = () => {
       addErrorLog(`Initial Phase Error: ${errorMessage}`);
       setIsLoading(false);
       isOrchestrationRunning.current = false;
+      setSystemStatus('error');
     }
   };
   
@@ -174,20 +251,53 @@ const App: React.FC = () => {
     setIsWaitingForHuman(false);
     setHumanQuestion(null);
     addMessage('orchestrator', { sender: 'user', content: answer });
-    runOrchestrationLoop();
+    setSystemStatus('processing'); // Back to processing
+
+    const triggerPrompt = `
+COMMAND::RECEIVE_HUMAN_INPUT
+ユーザーから回答がありました。直前の停止状態を解除し、この回答を評価して次のアクションへ進んでください。
+ユーザー回答: "${answer}"
+`.trim();
+    
+    isOrchestrationRunning.current = true;
+    runOrchestrationLoop(triggerPrompt);
   };
 
-  const runOrchestrationLoop = async () => {
+  const runOrchestrationLoop = async (overridePrompt?: string) => {
     setIsLoading(true);
+    setSystemStatus('processing');
     const orchestrator = AGENTS.find(a => a.id === 'orchestrator')!;
 
     let loopCount = 0;
-    while (isOrchestrationRunning.current && loopCount < 10) {
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+
+    while (isOrchestrationRunning.current && loopCount < 15) {
       loopCount++;
       try {
         setCurrentStatus('オーケストレーターが次の行動を計画しています...');
         setAgentThinking('orchestrator', true);
-        const orchestratorResponse = await generateResponse(orchestrator.systemPrompt, "対話履歴を元に次のアクションを決定してください。", conversationHistoryRef.current, 'gemini-2.5-pro');
+        
+        let currentPrompt = (loopCount === 1 && overridePrompt) 
+            ? overridePrompt 
+            : "対話履歴を元に次のアクションを決定してください。";
+            
+        if (retryCount > 0 && retryCount <= MAX_RETRIES) {
+             currentPrompt += "\n\n前回のアクション生成で構文エラーが発生しました。正しいフォーマットで再生成してください。";
+        }
+
+        addMessage('orchestrator', { sender: 'agent', content: '' });
+        
+        const orchestratorResponse = await generateResponseStream(
+            orchestrator.systemPrompt, 
+            currentPrompt, 
+            (chunk) => updateAgentLastMessage('orchestrator', chunk),
+            conversationHistoryRef.current, 
+            'gemini-2.5-pro'
+        );
+        
+        conversationHistoryRef.current += `\n\n--- Project Orchestrator ---\n${orchestratorResponse}`;
+        
         setAgentThinking('orchestrator', false);
 
         if (!orchestratorResponse) {
@@ -196,29 +306,51 @@ const App: React.FC = () => {
         
         const [thought, action] = parseOrchestratorResponse(orchestratorResponse);
 
-        if (thought) addMessage('orchestrator', { sender: 'agent', content: `思考:\n${thought}` });
+        if (orchestratorResponse.includes('AGIS_CMD::') && !action) {
+             throw new Error("コマンドの構文解析に失敗しました。AGIS_CMDのフォーマットを確認してください。");
+        }
+
         if (!action) {
-          addMessage('orchestrator', { sender: 'agent', content: '（思考中... 次のアクションを生成できませんでした。リトライします。）' });
-          continue; 
+          if(retryCount < MAX_RETRIES) {
+             addMessage('orchestrator', { sender: 'system', content: '（アクションが検出されませんでした。再試行します。）' });
+             retryCount++;
+             continue;
+          } else {
+             throw new Error("有効なアクションを生成できませんでした。");
+          }
         }
         
         const shouldContinue = await handleAction(action);
+        
+        retryCount = 0;
+
         if (!shouldContinue) {
           isOrchestrationRunning.current = false;
           break;
         }
       } catch (e) {
         const errorMsg = e instanceof Error ? e.message : String(e);
-        addMessage('orchestrator', { sender: 'system', content: `オーケストレーションループでエラーが発生しました: ${errorMsg}`});
-        addErrorLog(`Orchestration Loop Error: ${errorMsg}`);
-        isOrchestrationRunning.current = false;
-        break;
+        console.warn(`Orchestration Loop Error (Retry ${retryCount}/${MAX_RETRIES}):`, errorMsg);
+        
+        if (retryCount < MAX_RETRIES) {
+            addErrorLog(`Auto-Healing Triggered: ${errorMsg}`);
+            addMessage('orchestrator', { sender: 'system', content: `システムエラー（自己修復中）: ${errorMsg}` });
+            retryCount++;
+            continue;
+        } else {
+            addMessage('orchestrator', { sender: 'system', content: `オーケストレーションループで致命的なエラーが発生しました: ${errorMsg}`});
+            addErrorLog(`Orchestration Fatal Error: ${errorMsg}`);
+            isOrchestrationRunning.current = false;
+            setSystemStatus('error');
+            break;
+        }
       }
     }
 
-    if (isOrchestrationRunning.current === false && !isWaitingForHuman) {
+    if (isOrchestrationRunning.current === false && !isWaitingForHuman && systemStatus !== 'completed' && systemStatus !== 'error') {
         setIsLoading(false);
         setThinkingAgents(new Set());
+        setSystemStatus('idle'); // Fallback if not completed explicitly
     }
   };
 
@@ -237,17 +369,28 @@ const App: React.FC = () => {
   const handleAction = async (action: string): Promise<boolean> => {
     if (action.startsWith('AGIS_CMD::invoke(')) {
         const match = action.match(/AGIS_CMD::invoke\(([^,]+),\s*"([\s\S]*)"\)/);
-        if (match) {
-            const [, agentAlias, query] = match;
-            const agent = AGENTS.find(a => a.alias === agentAlias.trim());
-            if (agent) {
-                setCurrentStatus(`${agent.name}がタスクを実行中...`);
-                setAgentThinking(agent.id, true);
-                addMessage(agent.id, { sender: 'system', content: `タスク受信:\n${query}` });
-                const response = await generateResponse(agent.systemPrompt, query, undefined, 'gemini-2.5-pro');
-                setAgentThinking(agent.id, false);
-                addMessage(agent.id, { sender: 'agent', content: response });
-            }
+        if (!match) throw new Error("invokeコマンドの引数フォーマットが不正です。");
+
+        const [, agentAlias, query] = match;
+        const agent = AGENTS.find(a => a.alias === agentAlias.trim());
+        if (agent) {
+            setCurrentStatus(`${agent.name}がタスクを実行中...`);
+            setAgentThinking(agent.id, true);
+            addMessage(agent.id, { sender: 'system', content: `タスク受信:\n${query}` });
+            
+            addMessage(agent.id, { sender: 'agent', content: '' });
+            const response = await generateResponseStream(
+                agent.systemPrompt, 
+                query,
+                (chunk) => updateAgentLastMessage(agent.id, chunk),
+                undefined, 
+                'gemini-2.5-pro'
+            );
+            
+            conversationHistoryRef.current += `\n\n--- ${agent.name}からの報告書 ---\n${response}`;
+            setAgentThinking(agent.id, false);
+        } else {
+             throw new Error(`指定されたエージェント(${agentAlias})が見つかりません。`);
         }
     } else if (action.startsWith('AGIS_CMD::invoke_parallel(')) {
         const tasks: { agent: any; query: string }[] = [];
@@ -259,36 +402,48 @@ const App: React.FC = () => {
             if(agent) tasks.push({ agent, query });
         }
         
+        if (tasks.length === 0) throw new Error("invoke_parallelコマンド内のタスク解析に失敗しました。");
+
         setCurrentStatus(`${tasks.map(t => t.agent.name).join(', ')}が並列でタスクを実行中...`);
         tasks.forEach(t => {
             setAgentThinking(t.agent.id, true);
             addMessage(t.agent.id, { sender: 'system', content: `タスク受信:\n${t.query}` });
+            addMessage(t.agent.id, { sender: 'agent', content: '' });
         });
+
         await Promise.all(tasks.map(async task => {
-            const response = await generateResponse(task.agent.systemPrompt, task.query, undefined, 'gemini-2.5-pro');
+            const response = await generateResponseStream(
+                task.agent.systemPrompt, 
+                task.query, 
+                (chunk) => updateAgentLastMessage(task.agent.id, chunk),
+                undefined, 
+                'gemini-2.5-pro'
+            );
+            conversationHistoryRef.current += `\n\n--- ${task.agent.name}からの報告書 ---\n${response}`;
             setAgentThinking(task.agent.id, false);
-            addMessage(task.agent.id, { sender: 'agent', content: response });
         }));
     } else if (action.startsWith('AGIS_CMD::ask_human(')) {
         const match = action.match(/AGIS_CMD::ask_human\("([\s\S]*)"\)/);
-        if (match) {
-            const question = match[1];
-            setCurrentStatus('ユーザーからの応答を待っています...');
-            addMessage('orchestrator', { sender: 'agent', content: `ユーザーへの質問:\n${question}` });
-            setHumanQuestion(question);
-            setIsWaitingForHuman(true);
-            return false;
-        }
+        if (!match) throw new Error("ask_humanコマンドの引数フォーマットが不正です。");
+
+        const question = match[1];
+        setCurrentStatus('ユーザーからの応答を待っています...');
+        addMessage('orchestrator', { sender: 'agent', content: `ユーザーへの質問:\n${question}` });
+        setHumanQuestion(question);
+        setIsWaitingForHuman(true);
+        setSystemStatus('waiting');
+        playNotificationSound(); // Sonic Interface: Notification
+        return false;
     } else if (action.startsWith('AGIS_CMD::complete(')) {
         const match = action.match(/AGIS_CMD::complete\("([\s\S]*)"\)/);
-        if (match) {
-            const orchestratorReport = match[1];
-            addMessage('orchestrator', { sender: 'agent', content: `最終報告:\n${orchestratorReport}` });
-            
-            // Hand over to President for review
-            await runPresidentReview(orchestratorReport);
-        }
-        return false;
+        if (!match) throw new Error("completeコマンドの引数フォーマットが不正です。");
+
+        const orchestratorReport = match[1];
+        addMessage('orchestrator', { sender: 'agent', content: `最終報告:\n${orchestratorReport}` });
+        
+        await runPresidentReview(orchestratorReport);
+    } else {
+        throw new Error("不明なコマンドです: " + action.substring(0, 50) + "...");
     }
     return true;
   };
@@ -302,9 +457,19 @@ const App: React.FC = () => {
     - もし不十分な点があれば、\`REINSTRUCT::\`から始まる新しい指示をオーケストレーターに出してください。
     \n\n--- 統合報告書 ---\n${orchestratorReport}`;
 
-    const presidentReviewResponse = await generateResponse(president.systemPrompt, reviewPrompt, conversationHistoryRef.current, 'gemini-2.5-pro');
+    addMessage('president', { sender: 'agent', content: '' });
+
+    const presidentReviewResponse = await generateResponseStream(
+        president.systemPrompt, 
+        reviewPrompt, 
+        (chunk) => updateAgentLastMessage('president', chunk),
+        conversationHistoryRef.current, 
+        'gemini-2.5-pro'
+    );
+    
+    conversationHistoryRef.current += `\n\n--- President Review ---\n${presidentReviewResponse}`;
+
     setAgentThinking('president', false);
-    addMessage('president', { sender: 'agent', content: presidentReviewResponse });
 
     if (presidentReviewResponse.startsWith('REINSTRUCT::')) {
         setCurrentStatus('プレジデントからの追加指示。タスクを続行します...');
@@ -323,15 +488,18 @@ const App: React.FC = () => {
         isOrchestrationRunning.current = true;
         runOrchestrationLoop();
     } else {
-        // This is the final answer
         setCurrentStatus('ミッション完了。最終報告書を生成しました。');
         const fullReport = `# A.G.I.S. 最終報告書\n\n## プレジデントによる最終回答\n\n${presidentReviewResponse}\n\n---\n\n## オーケストレーターによる統合報告書\n\n${orchestratorReport}`;
         setFinalReport(fullReport);
         setToast({ message: "最終報告が完了しました。", type: "success" });
         isOrchestrationRunning.current = false;
+        setSystemStatus('completed');
+        playCompletionSound(); // Sonic Interface: Complete
     }
   };
 
+  // Expanded Agent Logic
+  const expandedAgent = expandedAgentId ? AGENTS.find(a => a.id === expandedAgentId) : null;
 
   if (!process.env.API_KEY) {
     return (
@@ -376,12 +544,31 @@ const App: React.FC = () => {
   );
   
   return (
-    <div className="flex flex-col h-screen bg-gray-900 text-gray-100">
+    <div className={`flex flex-col h-screen text-gray-100 relative transition-colors duration-[2000ms] ease-in-out ${getBackgroundGradient(systemStatus)}`}>
       <Toast message={toast?.message} type={toast?.type} />
       {humanQuestion && <QuestionModal question={humanQuestion} onSubmit={handleHumanResponse} isLoading={isLoading} />}
       {isErrorLogModalOpen && <ErrorLogModal logs={errorLogs} onClose={() => setIsErrorLogModalOpen(false)} onClear={() => { setErrorLogs([]); localStorage.removeItem('agis-error-logs'); }} />}
       
-      <header className="text-center p-4 border-b border-gray-700 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-10 flex justify-between items-center">
+      {/* Expanded Agent Modal */}
+      {expandedAgentId && expandedAgent && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fade-in">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setExpandedAgentId(null)}></div>
+          <div className="relative w-full max-w-5xl h-[90vh] z-10 shadow-2xl shadow-cyan-500/20 rounded-lg overflow-hidden">
+             <AgentCard 
+                key={`expanded-${expandedAgent.id}`}
+                id={`agent-card-expanded-${expandedAgent.id}`}
+                agent={expandedAgent} 
+                messages={messages[expandedAgent.id] || []} 
+                isThinking={thinkingAgents.has(expandedAgent.id)} 
+                finalReportContent={expandedAgent.id === 'president' ? finalReport : null}
+                isExpanded={true}
+                onClose={() => setExpandedAgentId(null)}
+              />
+          </div>
+        </div>
+      )}
+
+      <header className="text-center p-4 border-b border-gray-700 bg-gray-900/30 backdrop-blur-sm sticky top-0 z-10 flex justify-between items-center transition-colors duration-1000">
         <div className="flex-1"></div>
         <div className="flex-1 text-center">
             <h1 className="text-2xl font-bold">A.G.I.S.</h1>
@@ -398,19 +585,21 @@ const App: React.FC = () => {
         </div>
       </header>
       
-      <main className="flex-grow p-2 sm:p-4 grid grid-rows-[240px_1fr] gap-4 min-h-0">
+      <main className="flex-grow p-2 sm:p-4 grid grid-rows-[255px_1fr] gap-4 min-h-0">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {presidentAndOrchestrator.map(agent => (
             <AgentCard 
               key={agent.id} 
+              id={`agent-card-${agent.id}`}
               agent={agent} 
               messages={messages[agent.id] || []} 
               isThinking={thinkingAgents.has(agent.id)} 
               finalReportContent={agent.id === 'president' ? finalReport : null}
+              onExpand={() => setExpandedAgentId(agent.id)}
             />
           ))}
         </div>
-        <div className="min-h-0 overflow-y-auto">
+        <div className="min-h-0 overflow-y-auto p-4 pb-4 -m-2 sm:-m-4">
           {isInitialState ? (
             <div className="space-y-4">
               {teamOrder.map(teamName => (
@@ -419,11 +608,13 @@ const App: React.FC = () => {
                   <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 p-2 rounded-b-lg ${TEAM_COLORS[teamName].bg}`}>
                     {(specialistAgentsByTeam[teamName] || []).map(agent => (
                        <AgentCard 
-                        key={agent.id} 
-                        agent={agent}
+                        key={agent.id}
+                        id={`agent-card-${agent.id}`}
+                        agent={agent} 
                         messages={[]}
                         isThinking={false}
                         isCompact={true}
+                        onExpand={() => setExpandedAgentId(agent.id)}
                       />
                     ))}
                   </div>
@@ -435,10 +626,12 @@ const App: React.FC = () => {
                 {allSelectedSpecialists.map(agent => (
                   <AgentCard
                     key={agent.id}
+                    id={`agent-card-${agent.id}`}
                     agent={agent}
                     messages={messages[agent.id] || []}
                     isThinking={thinkingAgents.has(agent.id)}
                     isCompact={false}
+                    onExpand={() => setExpandedAgentId(agent.id)}
                   />
                 ))}
             </div>
