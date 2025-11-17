@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import { Agent, Message } from '../types';
 import { TEAM_COLORS } from '../constants';
@@ -8,7 +7,7 @@ interface AgentCardProps {
   messages: Message[];
   isThinking: boolean;
   finalReportContent?: string | null;
-  isSelected: boolean;
+  isCompact?: boolean;
 }
 
 const CodeBlock: React.FC<{ code: string }> = ({ code }) => {
@@ -35,7 +34,7 @@ const CodeBlock: React.FC<{ code: string }> = ({ code }) => {
     );
 };
 
-const AgentCard: React.FC<AgentCardProps> = ({ agent, messages, isThinking, finalReportContent, isSelected }) => {
+const AgentCard: React.FC<AgentCardProps> = ({ agent, messages, isThinking, finalReportContent, isCompact }) => {
   const teamColor = TEAM_COLORS[agent.team];
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [highlight, setHighlight] = useState(false);
@@ -46,14 +45,16 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent, messages, isThinking, fina
   };
 
   useEffect(() => {
-    scrollToBottom();
-    if (messages.length > prevMessagesLength.current) {
-        setHighlight(true);
-        const timer = setTimeout(() => setHighlight(false), 1200);
-        return () => clearTimeout(timer);
+    if (!isCompact) {
+      scrollToBottom();
+      if (messages.length > prevMessagesLength.current) {
+          setHighlight(true);
+          const timer = setTimeout(() => setHighlight(false), 1200);
+          return () => clearTimeout(timer);
+      }
+      prevMessagesLength.current = messages.length;
     }
-    prevMessagesLength.current = messages.length;
-  }, [messages]);
+  }, [messages, isCompact]);
 
   const handleDownload = () => {
     if (!finalReportContent) return;
@@ -110,16 +111,15 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent, messages, isThinking, fina
     });
   };
 
-  const selectionClass = isSelected ? 'hover:-translate-y-1' : 'filter grayscale opacity-60';
-
   return (
-    <div className={`flex flex-col border ${teamColor.border} rounded-lg h-full glass-effect ${teamColor.bg} ${isThinking ? 'thinking-border-animation' : ''} ${highlight ? 'flash-border-animation' : ''} transition-all duration-300 ${selectionClass}`}>
-      <div className={`p-3 border-b ${teamColor.border} flex justify-between items-center`}>
+    <div className={`flex flex-col border ${teamColor.border} rounded-lg ${isCompact ? 'h-auto justify-center' : 'h-[240px]'} glass-effect ${teamColor.bg} ${isThinking && !isCompact ? 'thinking-border-animation' : ''} ${highlight && !isCompact ? 'flash-border-animation' : ''} transition-all duration-300 hover:-translate-y-1`}>
+      <div className={`p-3 ${!isCompact ? `border-b ${teamColor.border}` : ''} flex justify-between items-center`}>
         <div>
+          {!isCompact && <p className={`text-xs ${teamColor.text} font-bold opacity-80`}>{agent.team}</p>}
           <h3 className="font-bold text-sm text-white">{agent.name}</h3>
           <p className={`text-xs ${teamColor.text}`}>{agent.role}</p>
         </div>
-        {finalReportContent && (
+        {finalReportContent && !isCompact && (
           <button
             onClick={handleDownload}
             className="bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors"
@@ -131,16 +131,18 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent, messages, isThinking, fina
           </button>
         )}
       </div>
-      <div className="flex-grow p-3 overflow-y-auto text-sm space-y-2 relative min-h-0">
-        {messages.map((msg, index) => (
-          <div key={index} className={`${msg.sender === 'user' ? 'text-cyan-300' : 'text-gray-200'}`}>
-            <p className="font-mono text-xs text-gray-500">{msg.timestamp}</p>
-            <div>{renderContent(msg.content)}</div>
-          </div>
-        ))}
-        {isThinking && <TypingIndicator />}
-        <div ref={messagesEndRef} />
-      </div>
+      {!isCompact && (
+        <div className="flex-grow p-3 overflow-y-auto text-sm space-y-2 relative min-h-0">
+            {messages.map((msg, index) => (
+            <div key={index} className={`${msg.sender === 'user' ? 'text-cyan-300' : 'text-gray-200'}`}>
+                <p className="font-mono text-xs text-gray-500">{msg.timestamp}</p>
+                <div>{renderContent(msg.content)}</div>
+            </div>
+            ))}
+            {isThinking && <TypingIndicator />}
+            <div ref={messagesEndRef} />
+        </div>
+      )}
     </div>
   );
 };

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 
 interface QuestionModalProps {
@@ -20,10 +19,12 @@ const QuestionModal: React.FC<QuestionModalProps> = ({ question, onSubmit, isLoa
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 glass-effect">
-      <div className="bg-gray-800/80 border border-cyan-500 rounded-lg p-6 max-w-lg w-full mx-4 shadow-2xl shadow-cyan-500/20">
-        <h2 className="text-lg font-bold text-cyan-300 mb-2">オーケストレーターからの質問</h2>
-        <p className="text-gray-300 mb-4 whitespace-pre-wrap">{question}</p>
-        <form onSubmit={handleSubmit}>
+      <div className="bg-gray-800/80 border border-cyan-500 rounded-lg p-6 max-w-lg w-full mx-4 shadow-2xl shadow-cyan-500/20 flex flex-col" style={{maxHeight: '80vh'}}>
+        <h2 className="text-lg font-bold text-cyan-300 mb-2 flex-shrink-0">オーケストレーターからの質問</h2>
+        <div className="overflow-y-auto mb-4 pr-2 flex-grow">
+          <p className="text-gray-300 whitespace-pre-wrap">{question}</p>
+        </div>
+        <form onSubmit={handleSubmit} className="flex-shrink-0">
           <textarea
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}

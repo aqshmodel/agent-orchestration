@@ -1,13 +1,14 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { AGENTS } from './constants';
-import { Message } from './types';
+import { Agent, Message, Team } from './types';
 import AgentCard from './components/AgentCard';
 import UserInput from './components/UserInput';
 import Toast from './components/Toast';
 import QuestionModal from './components/QuestionModal';
 import ErrorLogModal from './components/ErrorLogModal';
 import { generateResponse } from './services/geminiService';
+import { TEAM_COLORS } from './constants';
+
 
 type ToastMessage = {
   message: string;
@@ -186,7 +187,7 @@ const App: React.FC = () => {
       try {
         setCurrentStatus('オーケストレーターが次の行動を計画しています...');
         setAgentThinking('orchestrator', true);
-        const orchestratorResponse = await generateResponse(orchestrator.systemPrompt, "対話履歴を元に次のアクションを決定してください。", conversationHistoryRef.current, 'gemini-2.5-flash');
+        const orchestratorResponse = await generateResponse(orchestrator.systemPrompt, "対話履歴を元に次のアクションを決定してください。", conversationHistoryRef.current, 'gemini-2.5-pro');
         setAgentThinking('orchestrator', false);
 
         if (!orchestratorResponse) {
@@ -346,6 +347,33 @@ const App: React.FC = () => {
 
   const presidentAndOrchestrator = AGENTS.slice(0, 2);
   const specialistAgents = AGENTS.slice(2);
+  const isInitialState = selectedAgents.size === 0;
+  
+  const specialistAgentsByTeam = specialistAgents.reduce((acc, agent) => {
+    const team = agent.team;
+    if (!acc[team]) {
+      acc[team] = [];
+    }
+    acc[team].push(agent);
+    return acc;
+  }, {} as Record<Team, Agent[]>);
+
+  const teamOrder = [
+    Team.STRATEGIC_INSIGHT,
+    Team.PRODUCT_DESIGN,
+    Team.TECH_DEVELOPMENT,
+    Team.INFRA_SECURITY,
+    Team.MARKETING_BRAND,
+    Team.SALES_PARTNERSHIPS,
+    Team.COMMUNICATIONS_CUSTOMER_RELATIONS,
+    Team.FINANCE_BUSINESS_STRATEGY,
+    Team.PEOPLE_OPERATIONS,
+    Team.LEGAL_COMPLIANCE,
+  ];
+
+  const allSelectedSpecialists = teamOrder.flatMap(teamName =>
+    (specialistAgentsByTeam[teamName] || []).filter(agent => selectedAgents.has(agent.id))
+  );
   
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-gray-100">
@@ -370,8 +398,8 @@ const App: React.FC = () => {
         </div>
       </header>
       
-      <main className="flex-grow p-2 sm:p-4 grid grid-rows-3 gap-4 min-h-0">
-        <div className="row-span-1 grid grid-cols-1 md:grid-cols-2 grid-rows-1 gap-4 min-h-0">
+      <main className="flex-grow p-2 sm:p-4 grid grid-rows-[240px_1fr] gap-4 min-h-0">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {presidentAndOrchestrator.map(agent => (
             <AgentCard 
               key={agent.id} 
@@ -379,20 +407,42 @@ const App: React.FC = () => {
               messages={messages[agent.id] || []} 
               isThinking={thinkingAgents.has(agent.id)} 
               finalReportContent={agent.id === 'president' ? finalReport : null}
-              isSelected={true}
             />
           ))}
         </div>
-        <div className="row-span-2 grid grid-cols-2 grid-rows-8 md:grid-cols-3 md:grid-rows-5 lg:grid-cols-5 lg:grid-rows-3 gap-2 sm:gap-4 min-h-0">
-          {specialistAgents.map(agent => (
-            <AgentCard 
-              key={agent.id} 
-              agent={agent} 
-              messages={messages[agent.id] || []} 
-              isThinking={thinkingAgents.has(agent.id)}
-              isSelected={selectedAgents.size === 0 || selectedAgents.has(agent.id)}
-            />
-          ))}
+        <div className="min-h-0 overflow-y-auto">
+          {isInitialState ? (
+            <div className="space-y-4">
+              {teamOrder.map(teamName => (
+                <div key={teamName}>
+                  <h3 className={`text-sm font-bold p-2 rounded-t-lg ${TEAM_COLORS[teamName].bg} ${TEAM_COLORS[teamName].text} border-b-2 ${TEAM_COLORS[teamName].border}`}>{teamName}</h3>
+                  <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 p-2 rounded-b-lg ${TEAM_COLORS[teamName].bg}`}>
+                    {(specialistAgentsByTeam[teamName] || []).map(agent => (
+                       <AgentCard 
+                        key={agent.id} 
+                        agent={agent}
+                        messages={[]}
+                        isThinking={false}
+                        isCompact={true}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {allSelectedSpecialists.map(agent => (
+                  <AgentCard
+                    key={agent.id}
+                    agent={agent}
+                    messages={messages[agent.id] || []}
+                    isThinking={thinkingAgents.has(agent.id)}
+                    isCompact={false}
+                  />
+                ))}
+            </div>
+          )}
         </div>
       </main>
 
