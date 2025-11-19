@@ -10,6 +10,18 @@ import { getModelConfig } from '../config/models';
 import { processToolCalls } from '../services/orchestratorTools';
 import { executePresidentReview } from '../services/presidentOperations';
 
+// Web検索権限を持つエージェントIDのリスト (Tier 1 & Tier 2)
+const SEARCH_ENABLED_AGENTS = new Set([
+    'A1',  // Analyst
+    'A11', // Forecast
+    'A5',  // Tech
+    'A2',  // Ethno
+    'A6',  // Risk
+    'A12', // Legal
+    'C4',  // Public Affairs
+    'A17'  // PR
+]);
+
 export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
     const { t, language } = useLanguage();
     
@@ -136,6 +148,9 @@ export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
 
                 const results = await Promise.all(toolResult.agentTasks.map(async (task) => {
                     try {
+                        // Check if this agent is authorized to use Web Search
+                        const canSearch = SEARCH_ENABLED_AGENTS.has(task.agent.id);
+                        
                         const agentResponse = await generateResponseStream(
                             getSystemInstruction(task.agent.systemPrompt),
                             task.query,
@@ -143,7 +158,7 @@ export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
                             state.conversationHistoryRef.current, 
                             state.sharedKnowledgeBaseRef.current,
                             activeModel,
-                            true, 
+                            canSearch, // Pass the search capability flag
                             undefined,
                             undefined,
                             activeThinkingConfig,

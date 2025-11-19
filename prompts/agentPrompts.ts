@@ -69,26 +69,58 @@ import { C4_PROMPT } from './agents/C4_public_affairs';
 import { C5_PROMPT } from './agents/C5_economic_sys';
 import { C6_PROMPT } from './agents/C6_wellbeing';
 
+// 検索権限を持つエージェントへの追加指示
+const SEARCH_CAPABILITY_NOTE = `
+\n\n**【重要: Web検索機能の運用ルール】**
+あなたには「Google Search」ツールを使用する権限が付与されています。
+以下の状況では、積極的に検索ツールを使用し、事実に基づいた正確な情報（Grounding）を提供してください。
+1. 最新の市場データ、統計、ニュースが必要な場合。
+2. 技術的な仕様、ドキュメント、価格情報を確認する必要がある場合。
+3. 法規制やガイドラインの最新情報を確認する場合。
+4. あなたの内部知識が古い、または不確実である可能性がある場合。
+
+**検索を行う際は、情報の信頼性を担保するために以下の3つのルールを厳守してください:**
+
+1. **検索クエリの開示:**
+   思考プロセスまたはレポートの冒頭に、実際に使用した検索キーワード（クエリ）を明記してください。
+   *例: 「検索クエリ: "生成AI 市場規模 2025 予測", "Generative AI market size forecast 2025"」*
+
+2. **正直な報告 (Not Found Rule):**
+   検索しても信頼できる情報が見つからなかった場合は、無理に回答を捏造（ハルシネーション）せず、正直に「情報が見つかりませんでした」と報告してください。その上で推測を行う場合は、それが推測であることを明確に断ってください。
+
+3. **出典の明記:**
+   レポートの末尾に必ず**「参考文献リスト」**セクションを作成し、情報の根拠となったWebサイトのURLとタイトルをリスト形式で記載してください。URLは必ずGoogle Searchツールから取得した正確なものを使用してください。
+   *記述例:*
+   *   **参考文献リスト:**
+       *   [タイトル](https://example.com)
+       *   [タイトル](https://example.org)
+`;
+
 export const AGENT_PROMPTS: Record<string, string> = {
   president: PRESIDENT_PROMPT,
   orchestrator: ORCHESTRATOR_PROMPT,
-  A1: A1_PROMPT + COMMON_POSTAMBLE,
-  A2: A2_PROMPT + COMMON_POSTAMBLE,
+  
+  // Search Enabled Agents (Tier 1 & Tier 2)
+  A1: A1_PROMPT + COMMON_POSTAMBLE + SEARCH_CAPABILITY_NOTE,
+  A2: A2_PROMPT + COMMON_POSTAMBLE + SEARCH_CAPABILITY_NOTE,
+  A5: A5_PROMPT + COMMON_POSTAMBLE + SEARCH_CAPABILITY_NOTE,
+  A6: A6_PROMPT + COMMON_POSTAMBLE + SEARCH_CAPABILITY_NOTE,
+  A11: A11_PROMPT + COMMON_POSTAMBLE + SEARCH_CAPABILITY_NOTE,
+  A12: A12_PROMPT + COMMON_POSTAMBLE + SEARCH_CAPABILITY_NOTE,
+  A17: A17_PROMPT + COMMON_POSTAMBLE + SEARCH_CAPABILITY_NOTE,
+  C4: C4_PROMPT + COMMON_POSTAMBLE + SEARCH_CAPABILITY_NOTE,
+
+  // Standard Agents
   A3: A3_PROMPT + COMMON_POSTAMBLE,
   A4: A4_PROMPT + COMMON_POSTAMBLE,
-  A5: A5_PROMPT + COMMON_POSTAMBLE,
-  A6: A6_PROMPT + COMMON_POSTAMBLE,
   A7: A7_PROMPT + COMMON_POSTAMBLE,
   A8: A8_PROMPT + COMMON_POSTAMBLE,
   A9: A9_PROMPT + COMMON_POSTAMBLE,
   A10: A10_PROMPT + COMMON_POSTAMBLE,
-  A11: A11_PROMPT + COMMON_POSTAMBLE,
-  A12: A12_PROMPT + COMMON_POSTAMBLE,
   A13: A13_PROMPT + COMMON_POSTAMBLE,
   A14: A14_PROMPT + COMMON_POSTAMBLE,
   A15: A15_PROMPT + COMMON_POSTAMBLE,
   A16: A16_PROMPT + COMMON_POSTAMBLE,
-  A17: A17_PROMPT + COMMON_POSTAMBLE,
   A18: A18_PROMPT + COMMON_POSTAMBLE,
   A19: A19_PROMPT + COMMON_POSTAMBLE,
   A20: A20_PROMPT + COMMON_POSTAMBLE,
@@ -135,7 +167,6 @@ export const AGENT_PROMPTS: Record<string, string> = {
   C1: C1_PROMPT + COMMON_POSTAMBLE,
   C2: C2_PROMPT + COMMON_POSTAMBLE,
   C3: C3_PROMPT + COMMON_POSTAMBLE,
-  C4: C4_PROMPT + COMMON_POSTAMBLE,
   C5: C5_PROMPT + COMMON_POSTAMBLE,
   C6: C6_PROMPT + COMMON_POSTAMBLE,
 };
