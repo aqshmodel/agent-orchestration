@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Artifact } from '../types';
@@ -21,11 +20,21 @@ const ArtifactPreviewModal: React.FC<ArtifactPreviewModalProps> = ({ code, langu
         let html = code;
         
         // Replace <GENERATE_IMAGE> tags with actual base64 images
-        html = html.replace(/<GENERATE_IMAGE\s+PROMPT="([^"]+)"[^>]*\/>/g, (match, prompt) => {
-            // Find artifact by prompt description (fuzzy match)
-            const foundArtifact = Object.values(artifacts).find(art => 
-                art.type === 'image' && (art.description === prompt || art.description.includes(prompt.substring(0, 20)))
-            );
+        // Support both ID-based and Prompt-based lookup
+        html = html.replace(/<GENERATE_IMAGE\s+(?:ID="([^"]+)"\s+)?PROMPT="([^"]+)"[^>]*\/>/g, (match, id, prompt) => {
+            let foundArtifact;
+            
+            // 1. Try ID
+            if (id && artifacts[id]) {
+                foundArtifact = artifacts[id];
+            }
+            
+            // 2. Try Prompt Fuzzy
+            if (!foundArtifact) {
+                foundArtifact = Object.values(artifacts).find(art => 
+                    art.type === 'image' && (art.description === prompt || art.description.includes(prompt.substring(0, 20)))
+                );
+            }
             
             if (foundArtifact) {
                  return `<img src="data:${foundArtifact.mimeType};base64,${foundArtifact.data}" alt="${prompt}" style="max-width:100%;" />`;
@@ -56,17 +65,22 @@ const ArtifactPreviewModal: React.FC<ArtifactPreviewModalProps> = ({ code, langu
   }, [code, language, artifacts]);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[200] animate-fade-in">
-      <div className="bg-gray-900 border border-cyan-500 rounded-lg w-full max-w-[90vw] h-[90vh] flex flex-col shadow-2xl shadow-cyan-500/30 overflow-hidden">
+    <div className="fixed inset-0 z-[200] bg-black animate-fade-in">
+      <div className="w-full h-full flex flex-col bg-gray-900 overflow-hidden">
         
         {/* Header */}
-        <div className="flex justify-between items-center p-3 border-b border-gray-800 bg-gray-900">
-            <h2 className="text-lg font-bold text-cyan-100 flex items-center gap-2">
-                <span className="bg-cyan-900 text-cyan-300 px-2 py-0.5 rounded text-xs border border-cyan-700">HTML Preview</span>
-                {t.modal.previewTitle}
+        <div className="flex justify-between items-center p-4 border-b border-gray-700 bg-gray-900 shadow-md z-10">
+            <h2 className="text-xl font-bold text-cyan-100 flex items-center gap-3">
+                <span className="bg-cyan-900 text-cyan-300 px-3 py-1 rounded text-sm border border-cyan-700 font-mono tracking-wider">HTML PREVIEW</span>
+                <span className="opacity-90">{t.modal.previewTitle}</span>
             </h2>
-            <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors p-1 hover:bg-gray-800 rounded">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <button 
+                onClick={onClose} 
+                className="text-gray-300 hover:text-white hover:bg-red-900/50 transition-colors p-2 rounded-full flex items-center gap-2 group"
+                title="Close Preview"
+            >
+                <span className="text-sm font-bold hidden sm:inline group-hover:text-red-300 transition-colors">CLOSE</span>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 group-hover:text-red-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
@@ -82,7 +96,7 @@ const ArtifactPreviewModal: React.FC<ArtifactPreviewModalProps> = ({ code, langu
                     sandbox="allow-scripts allow-modals allow-forms allow-popups allow-same-origin" 
                  />
             ) : (
-                <div className="p-6 w-full h-full overflow-auto bg-[#1e1e1e] text-[#d4d4d4] font-mono text-sm">
+                <div className="p-8 w-full h-full overflow-auto bg-[#1e1e1e] text-[#d4d4d4] font-mono text-sm leading-relaxed">
                     <pre>{processedCode}</pre>
                 </div>
             )}
@@ -90,7 +104,7 @@ const ArtifactPreviewModal: React.FC<ArtifactPreviewModalProps> = ({ code, langu
         
         {/* Footer */}
         <div className="p-2 bg-gray-900 border-t border-gray-800 text-xs text-gray-500 flex justify-between items-center">
-            <span>Sandbox Environment</span>
+            <span>Sandbox Environment - Full Screen Mode</span>
             {language === 'html' && <span className="text-amber-500">⚠️ Scripts are allowed. Be careful with external links.</span>}
         </div>
       </div>

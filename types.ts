@@ -100,6 +100,7 @@ export interface TranslationResource {
     orchestratorThinking: string;
     presidentThinking: string;
     presidentReviewing: string;
+    presidentRefining: string;
     presidentReinstructing: string;
     agentsWorking: string;
     agentsReported: string;
@@ -158,6 +159,7 @@ export interface TranslationResource {
     userAnswerReceived: string;
     reinstructReceived: string;
     orchestratorReviewRequest: string;
+    presidentRefinementPrompt: string;
     agentsReportedPrompt: string;
     memberAddedPrompt: string;
     checkCompletePrompt: string;

@@ -52,7 +52,8 @@ export const ja: TranslationResource = {
   status: {
     orchestratorThinking: 'オーケストレーターが思考中... (サイクル {count})',
     presidentThinking: 'プレジデントがチームを編成中...',
-    presidentReviewing: 'プレジデントが最終レポートをレビュー中...',
+    presidentReviewing: 'プレジデントが最終レポートを執筆中... (第1稿)',
+    presidentRefining: 'プレジデントがレポートを推敲・再執筆中... (品質向上プロセス: {current}/{total})',
     presidentReinstructing: 'プレジデントの指示により、プロジェクトを継続します。',
     agentsWorking: '{names} が作業中...',
     agentsReported: '各専門家エージェントからの報告を受領しました。情報を統合し、次のステップを検討します。',
@@ -204,6 +205,17 @@ export const ja: TranslationResource = {
       taskInstruction: "【タスク指示】\n{query}",
       consultation: "【相談 from {from}】\n{query}",
       reviewRequest: "【レビュー依頼 (対象: {target}の報告書)】\n{query}",
+      presidentRefinementPrompt: `
+【推敲・再生成指示】
+提出されたドラフトを確認しましたが、まだ「20,000文字の壁」を超える圧倒的な情報密度と具体性に達していません。
+一発勝負で終わらせず、以下の点を強化して**HTMLレポート全体を最初から完全に再生成（リライト）**してください。
+
+1. **詳細化:** 各セクションの記述量を2倍に増やしてください。抽象的な概念ではなく、具体的な数値、事例、ステップバイステップの手順を追加してください。
+2. **網羅性:** 見落としている視点や、予想される反論への回答を追加してください。
+3. **ビジュアル:** グラフや図解のプレースホルダーを増やし、視覚的にもリッチにしてください。
+
+**これは推敲プロセスです。前回の出力を土台にしつつ、それを遥かに凌駕する品質の「決定版」を出力してください。**
+`,
       systemInstructionOverride: "", 
       orchestratorMandatoryRules: `
 【重要: 行動規範】

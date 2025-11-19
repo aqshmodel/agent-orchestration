@@ -1,4 +1,5 @@
 
+
 import { Agent } from '../types';
 import { AGENTS } from '../constants';
 import { generateResponseStream } from '../services/geminiService';
@@ -95,6 +96,7 @@ export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
 
                     state.setAgentThinking('president', true);
                     
+                    // 1. Initial Generation (Pass 1)
                     const reviewResponse = await generateResponseStream(
                         getSystemInstruction(president.systemPrompt),
                         reviewPrompt,
@@ -114,18 +116,60 @@ export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
                         state.registerArtifacts(reviewResponse.artifacts);
                     }
                     
-                    state.setAgentThinking('president', false);
-                    const reviewText = reviewResponse.text;
-                    state.appendToHistory(`--- President (Phase 2) ---\n${reviewText}`);
+                    let currentPresidentResponseText = reviewResponse.text;
+                    state.appendToHistory(`--- President (Phase 2 - Draft 1) ---\n${currentPresidentResponseText}`);
 
-                    if (reviewText.includes('REINSTRUCT::')) {
+                    // Check if it's a candidate for refinement (Contains HTML and NOT Reinstructing)
+                    if (!currentPresidentResponseText.includes('REINSTRUCT::') && currentPresidentResponseText.includes('<!DOCTYPE html>')) {
+                        const MAX_REFINEMENT_LOOPS = 2; // 2 additional passes = Total 3 passes
+                        
+                        for (let i = 0; i < MAX_REFINEMENT_LOOPS; i++) {
+                             state.setCurrentStatus(t.status.presidentRefining.replace('{current}', (i+1).toString()).replace('{total}', MAX_REFINEMENT_LOOPS.toString()));
+                             state.setAgentThinking('president', true);
+                             
+                             const refinementPrompt = t.prompts.presidentRefinementPrompt;
+                             
+                             // Add invisible prompt to context (visible in history log but maybe redundant in UI)
+                             // We force the prompt into the stream context
+                             const refineResponse = await generateResponseStream(
+                                getSystemInstruction(president.systemPrompt),
+                                refinementPrompt, // This prompts the "Self-Correction"
+                                 (chunk) => state.updateAgentLastMessage('president', chunk),
+                                 state.conversationHistoryRef.current, // Contains Draft 1
+                                 state.sharedKnowledgeBaseRef.current,
+                                 activeModel,
+                                 false,
+                                 undefined,
+                                 undefined,
+                                 activeThinkingConfig,
+                                 language,
+                                 'president'
+                             );
+                             
+                             currentPresidentResponseText = refineResponse.text;
+                             state.appendToHistory(`--- President (Phase 2 - Refinement ${i+1}) ---\n${currentPresidentResponseText}`);
+                             
+                             if (refineResponse.artifacts && refineResponse.artifacts.length > 0) {
+                                state.registerArtifacts(refineResponse.artifacts);
+                             }
+
+                             // If president changes mind and asks for re-instruct, break loop
+                             if (currentPresidentResponseText.includes('REINSTRUCT::')) {
+                                 break; 
+                             }
+                        }
+                    }
+                    
+                    state.setAgentThinking('president', false);
+
+                    if (currentPresidentResponseText.includes('REINSTRUCT::')) {
                             missionComplete = false;
-                            currentPrompt = t.prompts.reinstructReceived.replace('{reviewText}', reviewText);
+                            currentPrompt = t.prompts.reinstructReceived.replace('{reviewText}', currentPresidentResponseText);
                             state.addMessage('orchestrator', { sender: 'user', content: currentPrompt, timestamp: new Date().toLocaleTimeString() });
                             state.addGraphEvent({ from: 'president', to: 'orchestrator', type: 'instruction', timestamp: Date.now() });
                             state.setCurrentStatus(t.status.presidentReinstructing);
                     } else {
-                        state.setFinalReport(reviewText); 
+                        state.setFinalReport(currentPresidentResponseText); 
                         state.setSystemStatus('completed');
                         playCompletionSound();
                         state.showToast(t.status.completed);

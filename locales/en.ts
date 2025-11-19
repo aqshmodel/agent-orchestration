@@ -52,7 +52,8 @@ export const en: TranslationResource = {
   status: {
     orchestratorThinking: 'Orchestrator is thinking... (Cycle {count})',
     presidentThinking: 'President is assembling the team...',
-    presidentReviewing: 'President is reviewing the final report...',
+    presidentReviewing: 'President is writing the final report... (Draft 1)',
+    presidentRefining: 'President is refining and rewriting the report... (Quality Boost Process: {current}/{total})',
     presidentReinstructing: 'President instructed revisions. Project continued.',
     agentsWorking: '{names} are working...',
     agentsReported: 'Reports received from specialists. Consolidating information and planning next steps.',
@@ -204,6 +205,17 @@ export const en: TranslationResource = {
       taskInstruction: "[Task Instruction]\n{query}",
       consultation: "[Consultation from {from}]\n{query}",
       reviewRequest: "[Review Request (Target: {target}'s report)]\n{query}",
+      presidentRefinementPrompt: `
+[Refinement Instruction]
+I have reviewed the draft, but it has not yet reached the overwhelming information density and specificity required to break the "20,000-character barrier."
+Do not settle for a single pass. Strengthen the following points and **completely regenerate (rewrite) the entire HTML report from scratch**:
+
+1. **Detail:** Double the volume of each section. Add specific numbers, case studies, and step-by-step procedures instead of abstract concepts.
+2. **Comprehensiveness:** Add overlooked perspectives and answers to anticipated counterarguments.
+3. **Visuals:** Increase the number of placeholders for charts and diagrams to make it visually rich.
+
+**This is a refinement process. Use the previous output as a base, but produce a "Definitive Edition" of far superior quality.**
+`,
       systemInstructionOverride: "\n\n[IMPORTANT: LANGUAGE OVERRIDE]\nThe user has selected ENGLISH mode. Regardless of the fact that your original instructions are in Japanese, you MUST think, act, and generate ALL outputs, reports, and responses in ENGLISH.\n**This includes ALL text within graphs, charts (Mermaid), and Python plots.**\n\n**[MANDATORY FORMATTING]**\nYou MUST conclude your report with a section titled '**Key Insights**' containing bullet points of critical findings, followed by a section titled '**Proposals to Orchestrator**'. Use these EXACT headers.",
       orchestratorMandatoryRules: `
 [IMPORTANT: BEHAVIORAL RULES]

@@ -96,6 +96,42 @@ export const useAgisState = () => {
     });
   };
 
+  const injectArtifactId = (agentId: string, prompt: string, id: string) => {
+      const escapedPrompt = prompt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const targetStr = `PROMPT="${escapedPrompt}"`;
+      
+      // 1. Update Message State (UI)
+      setMessages(prev => {
+          const newMsgs = { ...prev };
+          if (!newMsgs[agentId]) return prev;
+          
+          let updated = false;
+          newMsgs[agentId] = newMsgs[agentId].map(msg => {
+              if (msg.sender !== 'agent') return msg;
+              // Check if tag exists and doesn't have ID yet
+              if (msg.content.includes(targetStr) && !msg.content.includes(`ID="${id}"`)) { 
+                   // Look for <GENERATE_IMAGE ... PROMPT="..." ... > ensuring we don't replace if ID exists
+                   const regex = new RegExp(`(<GENERATE_IMAGE\\s+(?:(?!ID=).)*?)PROMPT="${escapedPrompt}"`, 'g');
+                   const newContent = msg.content.replace(regex, `$1ID="${id}" PROMPT="${prompt}"`);
+                   if (newContent !== msg.content) {
+                       updated = true;
+                       return { ...msg, content: newContent };
+                   }
+              }
+              return msg;
+          });
+          
+          return updated ? newMsgs : prev;
+      });
+
+      // 2. Update History Ref (Context)
+      const regex = new RegExp(`(<GENERATE_IMAGE\\s+(?:(?!ID=).)*?)PROMPT="${escapedPrompt}"`, 'g');
+      conversationHistoryRef.current = conversationHistoryRef.current.replace(regex, `$1ID="${id}" PROMPT="${prompt}"`);
+      
+      // 3. Update Knowledge Base (if present)
+      sharedKnowledgeBaseRef.current = sharedKnowledgeBaseRef.current.replace(regex, `$1ID="${id}" PROMPT="${prompt}"`);
+  };
+
   const processImageGenerationTags = async (text: string, agentId: string) => {
     const tagRegex = /<GENERATE_IMAGE\s+PROMPT="([^"]+)"\s*(?:ASPECT="([^"]+)")?\s*\/>/g;
     let match;
@@ -113,6 +149,7 @@ export const useAgisState = () => {
           if (artifact) {
             console.log("Image generated successfully:", artifact.id);
             registerArtifacts([artifact]);
+            injectArtifactId(agentId, prompt, artifact.id); // Inject ID back into state/history
             showToast(t.agentCard.downloadImage + " Ready", 'success');
           }
         }).catch(err => {

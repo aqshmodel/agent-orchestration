@@ -1,3 +1,4 @@
+
 import React from 'react';
 import CodeBlock from './CodeBlock';
 import MermaidBlock from './MermaidBlock';
@@ -29,7 +30,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, artifacts 
                 }
 
                 // 2. Split by Artifact Tags or Image Generation Tags
-                // <FIGURE ID="..." /> or <GENERATE_IMAGE PROMPT="..." />
+                // <FIGURE ID="..." /> or <GENERATE_IMAGE PROMPT="..." /> or <GENERATE_IMAGE ID="..." PROMPT="..." />
                 const artifactParts = part.split(/(<(?:FIGURE|GENERATE_IMAGE)\s+[^>]+>)/g).filter(Boolean);
 
                 return artifactParts.map((subPart, j) => {
@@ -41,11 +42,13 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, artifacts 
                         return <ArtifactRenderer key={`${i}-${j}`} id={artifactId} description={desc} artifacts={artifacts} />;
                     }
 
-                    // Match GENERATE_IMAGE tag
-                    const genMatch = subPart.match(/<GENERATE_IMAGE\s+PROMPT="([^"]+)"/);
+                    // Match GENERATE_IMAGE tag (Supports optional ID)
+                    // Prioritize ID if present.
+                    const genMatch = subPart.match(/<GENERATE_IMAGE\s+(?:ID="([^"]+)"\s+)?PROMPT="([^"]+)"/);
                     if (genMatch) {
-                        const prompt = genMatch[1];
-                        return <ArtifactRenderer key={`${i}-${j}`} prompt={prompt} artifacts={artifacts} />;
+                        const id = genMatch[1]; // Group 1 is ID (optional)
+                        const prompt = genMatch[2]; // Group 2 is PROMPT
+                        return <ArtifactRenderer key={`${i}-${j}`} id={id} prompt={prompt} artifacts={artifacts} />;
                     }
 
                     // 3. Normal text processing

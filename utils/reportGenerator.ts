@@ -81,8 +81,17 @@ export const generateHtmlReport = (markdownContent: string, title: string = 'A.G
   if (markdownContent.trim().startsWith('<!DOCTYPE html>') || markdownContent.trim().startsWith('<html')) {
       let processedHtml = markdownContent;
       if (artifacts) {
-          processedHtml = processedHtml.replace(/<GENERATE_IMAGE\s+PROMPT="([^"]+)"[^>]*\/>/g, (match, prompt) => {
-             const foundArtifact = Object.values(artifacts).find(art => art.description.includes(prompt.substring(0, 20)));
+          processedHtml = processedHtml.replace(/<GENERATE_IMAGE\s+(?:ID="([^"]+)"\s+)?PROMPT="([^"]+)"[^>]*\/>/g, (match, id, prompt) => {
+             let foundArtifact;
+             // 1. Try ID match
+             if (id && artifacts[id]) {
+                 foundArtifact = artifacts[id];
+             }
+             // 2. Fallback to fuzzy prompt match
+             if (!foundArtifact) {
+                 foundArtifact = Object.values(artifacts).find(art => art.description.includes(prompt.substring(0, 20)));
+             }
+             
              if (foundArtifact && foundArtifact.type === 'image') {
                  return `<img src="data:${foundArtifact.mimeType};base64,${foundArtifact.data}" alt="${prompt}" class="generated-image" />`;
              }
