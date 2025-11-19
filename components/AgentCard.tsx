@@ -4,6 +4,7 @@ import { Agent, Message, Artifact } from '../types';
 import { AGENT_COLORS, TEAM_COLORS } from '../constants';
 import { generateHtmlReport, generateWordDoc } from '../utils/reportGenerator';
 import { useLanguage } from '../contexts/LanguageContext';
+import MermaidBlock from './MermaidBlock';
 
 // Declare Mermaid global
 declare const mermaid: any;
@@ -21,7 +22,7 @@ interface AgentCardProps {
   artifacts?: Record<string, Artifact>; // New prop
 }
 
-const CodeBlock: React.FC<{ code: string, language?: string }> = ({ code, language = 'text' }) => {
+const CodeBlock: React.FC<{ code: string, language?: string, artifacts?: Record<string, Artifact> }> = ({ code, language = 'text', artifacts }) => {
     const [copied, setCopied] = useState(false);
     const { t } = useLanguage();
     
@@ -34,6 +35,76 @@ const CodeBlock: React.FC<{ code: string, language?: string }> = ({ code, langua
 
     // Special handling for execution results
     const isExecutionResult = code.includes('[Execution Result:');
+    
+    // Detect if this is a downloadable artifact
+    const isDownloadable = language && (
+        language === 'html' || 
+        language === 'javascript' || 
+        language === 'js' || 
+        language === 'typescript' || 
+        language === 'ts' || 
+        language === 'python' || 
+        language === 'py' ||
+        language === 'xml' ||
+        language === 'json'
+    );
+    
+    // Detect specific artifact types
+    const isHTML = language === 'html';
+    const isGAS = (language === 'javascript' || language === 'js') && (code.includes('function createPresentation') || code.includes('SpreadsheetApp') || code.includes('SlidesApp'));
+    
+    const handleDownloadArtifact = () => {
+        let fileContent = code;
+        let mimeType = 'text/plain';
+        let extension = 'txt';
+
+        // Handle Image Embedding for HTML
+        if (isHTML && artifacts) {
+            // First replace specific Generate tags
+             fileContent = fileContent.replace(/<GENERATE_IMAGE\s+PROMPT="([^"]+)"[^>]*\/>/g, (match, prompt) => {
+                // Fuzzy match for artifacts by prompt description
+                const foundArtifact = Object.values(artifacts).find(art => art.description.includes(prompt.substring(0, 20)));
+                
+                if (foundArtifact && foundArtifact.type === 'image') {
+                     return `<img src="data:${foundArtifact.mimeType};base64,${foundArtifact.data}" alt="${prompt}" style="max-width:100%; border-radius:8px;" />`;
+                }
+                return `<div style="background:#333; color:#fff; padding:20px; text-align:center;">[Image Placeholder: ${prompt}]</div>`;
+            });
+            
+            // Also look for simple img src placeholders if agents used them
+             fileContent = fileContent.replace(/<img src="\[IMAGE_(\d+)\]" \/>/g, (match, id) => {
+                 // This is a bit heuristic, just trying to catch simple placeholders
+                 return match; 
+             });
+             
+            mimeType = 'text/html';
+            extension = 'html';
+        } else if (isGAS) {
+            mimeType = 'text/javascript';
+            extension = 'gs';
+        } else if (language === 'python') {
+             mimeType = 'text/x-python';
+             extension = 'py';
+        } else if (language === 'json') {
+             mimeType = 'application/json';
+             extension = 'json';
+        }
+
+        const blob = new Blob([fileContent], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `artifact_${Date.now()}.${extension}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    let downloadLabel = 'File';
+    if (isHTML) downloadLabel = '.html';
+    else if (isGAS) downloadLabel = '.gs';
+    else if (language) downloadLabel = `.${language}`;
 
     return (
         <div className={`relative group my-2 ${isExecutionResult ? 'border-l-4 border-green-500' : ''}`}>
@@ -43,72 +114,54 @@ const CodeBlock: React.FC<{ code: string, language?: string }> = ({ code, langua
             <pre className={`bg-gray-800/60 p-3 rounded-md font-mono text-xs overflow-x-auto ${isExecutionResult ? 'text-green-100' : 'text-cyan-200'}`}>
                 <code>{code}</code>
             </pre>
-            <button 
-                onClick={handleCopy} 
-                className="absolute top-2 right-12 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-1 px-2 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                title="Copy code"
-            >
-                {copied ? t.agentCard.copied : t.agentCard.copy}
-            </button>
+            <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                    onClick={handleCopy} 
+                    className="bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-1 px-2 rounded-md transition-all"
+                    title={t.agentCard.copy}
+                >
+                    {copied ? t.agentCard.copied : t.agentCard.copy}
+                </button>
+                {isDownloadable && !isExecutionResult && (
+                     <button 
+                        onClick={handleDownloadArtifact}
+                        className="bg-cyan-700 hover:bg-cyan-600 text-white text-xs font-bold py-1 px-2 rounded-md transition-all flex items-center"
+                        title={t.agentCard.download}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        {downloadLabel}
+                    </button>
+                )}
+            </div>
         </div>
     );
 };
 
-const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
-    const [svg, setSvg] = useState<string>('');
-    const [error, setError] = useState<string | null>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const id = useRef(`mermaid-${Math.random().toString(36).substr(2, 9)}`).current;
+const ArtifactBlock: React.FC<{ id?: string, description?: string, artifacts?: Record<string, Artifact>, prompt?: string }> = ({ id, description, artifacts, prompt }) => {
     const { t } = useLanguage();
-
-    useEffect(() => {
-        const renderChart = async () => {
-            try {
-                if (typeof mermaid !== 'undefined') {
-                    // Clean up code (remove markdown wrapper if present)
-                    const cleanCode = code.replace(/^```mermaid\n?/, '').replace(/```$/, '').trim();
-                    // Need to ensure element exists before rendering
-                    if(containerRef.current) {
-                         // Reset for re-render
-                         containerRef.current.innerHTML = ''; 
-                         const { svg } = await mermaid.render(id, cleanCode);
-                         setSvg(svg);
-                         setError(null);
-                    }
-                } else {
-                    setError(t.errors.mermaidLib);
-                }
-            } catch (err: any) {
-                console.error("Mermaid render error:", err);
-                setError(t.errors.mermaidRender + err.message);
-            }
-        };
-        // Simple debounce/delay to ensure DOM readiness
-        const timer = setTimeout(renderChart, 100);
-        return () => clearTimeout(timer);
-    }, [code, id, t]);
-
-    if (error) return (
-        <div className="bg-red-900/30 border border-red-700 text-red-300 p-2 text-xs rounded my-2">
-            <p className="font-bold">Mermaid Error:</p>
-            <p>{error}</p>
-            <pre className="mt-1 opacity-50 text-[10px] overflow-x-auto">{code}</pre>
-        </div>
-    );
     
-    // Render SVG
-    return (
-        <div ref={containerRef} className="my-4 bg-gray-800/50 p-4 rounded-lg overflow-x-auto flex justify-center border border-gray-700" dangerouslySetInnerHTML={{ __html: svg }} />
-    );
-};
-
-const ArtifactBlock: React.FC<{ id: string, description: string, artifacts?: Record<string, Artifact> }> = ({ id, description, artifacts }) => {
-    const artifact = artifacts ? artifacts[id] : undefined;
+    // Find artifact by ID or by matching description/prompt
+    let artifact = id && artifacts ? artifacts[id] : undefined;
+    
+    if (!artifact && prompt && artifacts) {
+        // Use fuzzy match or exact match for prompt
+        artifact = Object.values(artifacts).find(art => art.description === prompt || art.description.includes(prompt.substring(0, 20)));
+    }
 
     if (!artifact) {
+        if (prompt) {
+            return (
+                <div className="my-2 p-3 border border-dashed border-cyan-700 bg-cyan-900/20 rounded flex items-center justify-center space-x-2 animate-pulse">
+                    <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-cyan-400 text-xs">{t.agentCard.generatingImage}: "{prompt.length > 30 ? prompt.substring(0,30)+'...' : prompt}"</span>
+                </div>
+            );
+        }
         return (
             <div className="my-2 p-3 border border-dashed border-gray-500 bg-gray-800/50 rounded text-gray-400 text-xs">
-                [Artifact: {id} not found] {description}
+                [Artifact: {id || description} not found]
             </div>
         );
     }
@@ -117,21 +170,24 @@ const ArtifactBlock: React.FC<{ id: string, description: string, artifacts?: Rec
         return (
             <div className="my-4 bg-gray-900/80 p-2 rounded border border-gray-700">
                 <div className="mb-1 text-[10px] text-gray-400 flex justify-between">
-                    <span>{description || artifact.description}</span>
+                    <span className="truncate max-w-[200px]" title={description || artifact.description}>{description || artifact.description}</span>
                     <span className="font-mono">{new Date(artifact.timestamp).toLocaleTimeString()}</span>
                 </div>
                 <img 
                     src={`data:${artifact.mimeType};base64,${artifact.data}`} 
-                    alt={description} 
+                    alt={description || artifact.description} 
                     className="max-w-full h-auto rounded shadow-lg mx-auto" 
                 />
-                <div className="mt-1 text-center">
+                <div className="mt-2 text-center">
                     <a 
                         href={`data:${artifact.mimeType};base64,${artifact.data}`} 
-                        download={`figure-${id}.png`}
-                        className="text-[10px] text-cyan-400 hover:underline cursor-pointer"
+                        download={`generated-image-${artifact.id}.png`}
+                        className="text-[10px] bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 px-3 py-1 rounded transition-colors flex items-center justify-center gap-1 mx-auto w-fit"
                     >
-                        Download Image
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        {t.agentCard.downloadImage}
                     </a>
                 </div>
             </div>
@@ -240,7 +296,6 @@ const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, 
 
   const handleDownloadWord = () => {
       if (!finalReportContent) return;
-      // Note: Word doc generator handles basic markdown, artifacts injection is limited to simple placeholders or basic images if handled
       const wordContent = generateWordDoc(finalReportContent, 'A.G.I.S. Report', language);
       const blob = new Blob([wordContent], { type: 'application/msword;charset=utf-8' });
       const url = URL.createObjectURL(blob);
@@ -275,19 +330,27 @@ const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, 
             if (language === 'mermaid') {
                 return <MermaidBlock key={i} code={code} />;
             }
-            return <CodeBlock key={i} code={code} language={language} />;
+            return <CodeBlock key={i} code={code} language={language} artifacts={artifacts} />;
         }
 
-        // 2. Split by Artifact Tags: <FIGURE ID="..." DESC="..." />
-        // Regex to match <FIGURE ... />
-        const artifactParts = part.split(/(<FIGURE\s+ID="[^"]+"\s+DESC="[^"]*"\s*\/>)/g).filter(Boolean);
+        // 2. Split by Artifact Tags or Image Generation Tags
+        // <FIGURE ID="..." /> or <GENERATE_IMAGE PROMPT="..." />
+        const artifactParts = part.split(/(<(?:FIGURE|GENERATE_IMAGE)\s+[^>]+>)/g).filter(Boolean);
 
         return artifactParts.map((subPart, j) => {
-            const match = subPart.match(/<FIGURE\s+ID="([^"]+)"\s+DESC="([^"]*)"\s*\/>/);
-            if (match) {
-                const artifactId = match[1];
-                const desc = match[2];
+            // Match FIGURE tag
+            const figMatch = subPart.match(/<FIGURE\s+ID="([^"]+)"\s+DESC="([^"]*)"\s*\/>/);
+            if (figMatch) {
+                const artifactId = figMatch[1];
+                const desc = figMatch[2];
                 return <ArtifactBlock key={`${i}-${j}`} id={artifactId} description={desc} artifacts={artifacts} />;
+            }
+
+            // Match GENERATE_IMAGE tag
+            const genMatch = subPart.match(/<GENERATE_IMAGE\s+PROMPT="([^"]+)"/);
+            if (genMatch) {
+                const prompt = genMatch[1];
+                return <ArtifactBlock key={`${i}-${j}`} prompt={prompt} artifacts={artifacts} />;
             }
 
             // 3. Normal text processing

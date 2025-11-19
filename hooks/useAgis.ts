@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Agent, Message, GraphEvent, Artifact } from '../types';
 import { AGENTS } from '../constants';
-import { generateResponseStream, UploadedFile } from '../services/geminiService';
+import { generateResponseStream, UploadedFile, generateImage } from '../services/geminiService';
 import { playStartSound, playNotificationSound, playCompletionSound } from '../services/soundService';
 import { Type, FunctionDeclaration } from '@google/genai';
 import { SessionMetadata } from '../components/SessionManagerModal';
@@ -141,6 +141,7 @@ export const useAgis = () => {
   const [selectedModel, setSelectedModel] = useState('gemini-3-pro-preview-high');
   const [graphEvents, setGraphEvents] = useState<GraphEvent[]>([]); 
   const [artifacts, setArtifacts] = useState<Record<string, Artifact>>({}); // New state for artifacts
+  const processedImageTagsRef = useRef<Set<string>>(new Set()); // Track processed image tags to avoid duplicates
   
   const { language, t } = useLanguage();
 
@@ -196,7 +197,48 @@ export const useAgis = () => {
     conversationHistoryRef.current += text + '\n\n';
   };
 
+  const processImageGenerationTags = async (text: string, agentId: string) => {
+      // Regex to catch <GENERATE_IMAGE ... />
+      // Supports PROMPT and ASPECT attributes
+      const tagRegex = /<GENERATE_IMAGE\s+PROMPT="([^"]+)"\s*(?:ASPECT="([^"]+)")?\s*\/>/g;
+      let match;
+      
+      // We iterate through all matches
+      while ((match = tagRegex.exec(text)) !== null) {
+          const fullTag = match[0];
+          const prompt = match[1];
+          const aspect = (match[2] || '1:1') as '1:1' | '16:9' | '4:3' | '3:4' | '9:16';
+          
+          // Simple unique key for deduplication within session
+          // We use prompt length to avoid very long key names if prompt is huge
+          const tagKey = `${agentId}-${prompt.substring(0, 50)}-${prompt.length}-${aspect}`;
+          
+          if (!processedImageTagsRef.current.has(tagKey)) {
+              processedImageTagsRef.current.add(tagKey);
+              
+              console.log(`Detected image generation tag: ${prompt} (${aspect})`);
+              
+              // Trigger async image generation
+              // We don't await here to keep the UI responsive, but we update artifacts state when done
+              generateImage(prompt, aspect).then(artifact => {
+                  if (artifact) {
+                      console.log("Image generated successfully:", artifact.id);
+                      // Attach prompt as description for easier matching
+                      registerArtifacts([artifact]);
+                      showToast(t.agentCard.downloadImage + " Ready", 'success');
+                  }
+              }).catch(err => {
+                  console.error("Failed to generate image in background:", err);
+              });
+          }
+      }
+  };
+
   const updateAgentLastMessage = (agentId: string, content: string) => {
+    // Trigger image generation check on every chunk update
+    // This ensures we catch tags as they appear
+    processImageGenerationTags(content, agentId);
+
     setMessages(prev => {
       const agentMessages = prev[agentId] || [];
       const lastMsg = agentMessages[agentMessages.length - 1];
@@ -255,6 +297,7 @@ export const useAgis = () => {
       setCurrentSessionId(null);
       setGraphEvents([]); 
       setArtifacts({}); // Reset Artifacts
+      processedImageTagsRef.current = new Set();
       conversationHistoryRef.current = '';
       sharedKnowledgeBaseRef.current = '';
       showToast(t.status.reset, 'info');
@@ -329,6 +372,7 @@ export const useAgis = () => {
             sharedKnowledgeBaseRef.current = sessionData.state.sharedKnowledgeBase;
             setGraphEvents(sessionData.state.graphEvents || []);
             setArtifacts(sessionData.state.artifacts || {}); // Load Artifacts
+            processedImageTagsRef.current = new Set(); // Reset tag tracking on load
             
             setCurrentSessionId(id);
             showToast(t.status.sessionLoaded);
@@ -611,8 +655,6 @@ export const useAgis = () => {
                 combinedResults += `--- ${agent.alias} Report ---\n${text}\n\n`;
                 
                 // Extract Key Insights using regex compatible with multi-language headers
-                // Japanese: 【キーインサイト】
-                // English: **Key Insights**, ## Key Insights, Key Insights:
                 const keyInsightsMatch = text.match(/(?:【キーインサイト】|(?:\*\*|##|\[)?\s*Key Insights\s*(?:\*\*|\]|:)?)([\s\S]*?)(?=(?:【|\[Orchestrator|\[Next|AGIS_CMD|REINSTRUCT|オーケストレーターへの提案|Proposals to Orchestrator|\*\*Proposals|$))/i);
                 if (keyInsightsMatch) {
                     sharedKnowledgeBaseRef.current += `\n[${agent.alias}]: ${keyInsightsMatch[1].trim()}\n`;

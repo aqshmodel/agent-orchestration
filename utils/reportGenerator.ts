@@ -217,28 +217,37 @@ export const generateHtmlReport = (markdownContent: string, title: string = 'A.G
             // Custom renderer to handle specific elements if needed
             const renderer = new marked.Renderer();
             
-            // Custom Code Block Renderer for Mermaid
+            // Custom Code Block Renderer for Mermaid and Execution Results
             renderer.code = function(code, language) {
+                const validCode = String(code || ''); // Ensure code is a string to prevent errors
+                
                 if (language === 'mermaid') {
-                    return '<div class="mermaid my-12 flex justify-center bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-x-auto">' + code + '</div>';
+                    return '<div class="mermaid my-12 flex justify-center bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-x-auto">' + validCode + '</div>';
                 }
                 // Handle execution results specially
-                if (code.includes('[Execution Result:')) {
-                     return '<div class="my-6 text-xs font-mono bg-slate-900 text-green-400 p-5 rounded-lg border-l-4 border-green-500 overflow-x-auto shadow-lg">' + code + '</div>';
+                if (validCode.includes('[Execution Result:')) {
+                     return '<div class="my-6 text-xs font-mono bg-slate-900 text-green-400 p-5 rounded-lg border-l-4 border-green-500 overflow-x-auto shadow-lg">' + validCode + '</div>';
                 }
-                return '<pre class="bg-slate-900 text-slate-200 p-5 rounded-lg overflow-x-auto text-sm shadow-md"><code class="language-' + language + '">' + code + '</code></pre>';
+                return '<pre class="bg-slate-900 text-slate-200 p-5 rounded-lg overflow-x-auto text-sm shadow-md"><code class="language-' + language + '">' + validCode + '</code></pre>';
             };
 
             // Parse
-            contentArea.innerHTML = marked.parse(rawMarkdown, { renderer: renderer });
+            try {
+                contentArea.innerHTML = marked.parse(rawMarkdown, { renderer: renderer });
+            } catch (e) {
+                console.error("Markdown parsing error:", e);
+                contentArea.innerHTML = "<p style='color:red;'>Error parsing report content.</p>";
+            }
 
             // 3. Initialize Mermaid
-            mermaid.initialize({ 
-                startOnLoad: true,
-                theme: htmlEl.classList.contains('dark') ? 'dark' : 'default',
-                securityLevel: 'loose',
-                fontFamily: 'Noto Sans JP',
-            });
+            if (typeof mermaid !== 'undefined') {
+                mermaid.initialize({ 
+                    startOnLoad: true,
+                    theme: htmlEl.classList.contains('dark') ? 'dark' : 'default',
+                    securityLevel: 'loose',
+                    fontFamily: 'Noto Sans JP',
+                });
+            }
 
             // 4. Generate TOC
             const tocContainer = document.getElementById('toc');
@@ -285,13 +294,15 @@ export const generateWordDoc = (markdownContent: string, title: string = 'A.G.I.
         
         // Handle Code Blocks (especially Mermaid) to be text-safe for Word
         renderer.code = (code: string, language: string) => {
+            const validCode = String(code || ''); // Ensure code is string
+            
             if (language === 'mermaid') {
                 return `<div style="margin: 1em 0; padding: 1em; background-color: #f8f9fa; border: 1px solid #e9ecef; color: #555;">
                     <p style="font-weight: bold; color: #666; font-family: sans-serif; font-size: 0.9em;">[図表: このMermaid図はWebレポート(.html)でのみ表示可能です]</p>
-                    <pre style="font-family: monospace; font-size: 0.8em; white-space: pre-wrap; background-color: #eee; padding: 5px;">${code}</pre>
+                    <pre style="font-family: monospace; font-size: 0.8em; white-space: pre-wrap; background-color: #eee; padding: 5px;">${validCode}</pre>
                 </div>`;
             }
-            return `<pre style="background-color: #f1f1f1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace;"><code>${code}</code></pre>`;
+            return `<pre style="background-color: #f1f1f1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace;"><code>${validCode}</code></pre>`;
         };
 
         // Simplify headings styles inline
@@ -309,7 +320,11 @@ export const generateWordDoc = (markdownContent: string, title: string = 'A.G.I.
         };
 
         // Parse
-        bodyContent = marked.parse(markdownContent, { renderer });
+        try {
+            bodyContent = marked.parse(markdownContent, { renderer });
+        } catch (e) {
+             bodyContent = `<pre>${markdownContent}</pre>`;
+        }
     } else {
         // Fallback: Wrap in pre if marked is missing
         bodyContent = `<pre>${markdownContent}</pre>`;

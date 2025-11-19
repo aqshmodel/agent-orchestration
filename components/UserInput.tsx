@@ -52,7 +52,6 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
       const newFiles: FileData[] = [];
       for (let i = 0; i < e.target.files.length; i++) {
         const file = e.target.files[i];
-        // Determine if we treat this as text for RAG or binary for Multimodal
         const isText = 
             file.type.startsWith('text/') || 
             file.name.endsWith('.md') || 
@@ -87,7 +86,6 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
       }
       setSelectedFiles(prev => [...prev, ...newFiles]);
     }
-    // Reset input to allow selecting the same file again
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -105,18 +103,20 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
   };
 
   return (
-    <div className="bg-gray-900/50 backdrop-blur-sm border-t border-gray-700 sticky bottom-0">
+    <div className="fixed bottom-8 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-full md:max-w-4xl z-40 flex flex-col items-center pointer-events-none">
        {isLoading && currentStatus && (
-        <div className="text-center text-xs text-cyan-300 p-1.5 bg-gray-800/50">
-          {currentStatus}
+        <div className="pointer-events-auto mb-4 text-xs font-mono text-cyan-300 bg-gray-900/90 border border-cyan-500/50 px-4 py-2 rounded-full shadow-[0_0_10px_rgba(34,211,238,0.3)] backdrop-blur-md animate-fade-in flex items-center gap-2">
+           <div className="w-2 h-2 bg-cyan-400 rounded-full animate-ping"></div>
+           {currentStatus}
         </div>
       )}
-      <form onSubmit={handleSubmit} className="p-4">
-        <div className="max-w-4xl mx-auto">
+      
+      <div className="pointer-events-auto w-full bg-gray-900/95 backdrop-blur-xl border border-cyan-500/30 rounded-2xl input-glow transition-all duration-300">
+        <form onSubmit={handleSubmit} className="p-2 relative">
           {selectedFiles.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-2">
+            <div className="px-2 pt-2 pb-1 flex flex-wrap gap-2 max-h-32 overflow-y-auto custom-scrollbar">
               {selectedFiles.map((file, index) => (
-                <div key={index} className="relative group inline-flex items-center bg-gray-800 border border-gray-600 rounded px-2 py-1">
+                <div key={index} className="relative group inline-flex items-center bg-gray-800/80 border border-gray-600 rounded-lg px-2 py-1.5">
                   {file.type.startsWith('image/') ? (
                      <img src={file.data} alt={file.name} className="h-8 w-8 object-cover rounded mr-2" />
                   ) : file.type.startsWith('audio/') ? (
@@ -124,27 +124,19 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" />
                         </svg>
-                        <span className="text-[10px]">{t.input.audio}</span>
                      </div>
                   ) : (
                      <div className="mr-2 text-cyan-400">
-                         {file.isText ? (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                         ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
-                         )}
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
                      </div>
                   )}
                   <span className="text-xs text-gray-300 max-w-[100px] truncate" title={file.name}>{file.name}</span>
-                  <span className="ml-1 text-[9px] text-gray-500 border border-gray-600 rounded px-1">{file.isText ? t.input.text : file.type.split('/')[1].toUpperCase()}</span>
                   <button
                     type="button"
                     onClick={() => handleRemoveFile(index)}
-                    className="ml-2 text-gray-500 hover:text-red-400"
+                    className="ml-2 text-gray-500 hover:text-red-400 p-0.5 rounded hover:bg-red-900/30"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -154,12 +146,13 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
               ))}
             </div>
           )}
-          <div className="flex items-center space-x-3">
+          
+          <div className="flex items-end gap-2">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isLoading}
-              className="text-gray-400 hover:text-cyan-400 transition-colors p-2 relative"
+              className="text-gray-400 hover:text-cyan-400 transition-colors p-3 rounded-xl hover:bg-gray-800/50 flex-shrink-0"
               title={t.input.attach}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -181,9 +174,8 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
               onCompositionStart={() => setIsComposing(true)}
               onCompositionEnd={() => setIsComposing(false)}
               placeholder={t.input.placeholder}
-              className="flex-grow bg-gray-800 border border-gray-600 rounded-lg p-3 text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-500 focus:outline-none resize-none"
+              className="flex-grow bg-transparent border-none text-gray-100 placeholder-gray-400 focus:ring-0 resize-none py-3 pl-4 max-h-[200px] custom-scrollbar leading-relaxed caret-cyan-400"
               rows={1}
-              style={{ maxHeight: '150px' }}
               disabled={isLoading}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
@@ -195,10 +187,10 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
             <button
               type="submit"
               disabled={isLoading || (!prompt.trim() && selectedFiles.length === 0)}
-              className="bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white rounded-lg p-3 h-full flex items-center justify-center transition-colors"
+              className="bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-xl p-3 transition-all flex-shrink-0 shadow-[0_0_10px_rgba(8,145,178,0.5)] hover:shadow-[0_0_15px_rgba(34,211,238,0.6)]"
             >
               {isLoading ? (
-                <svg className="animate-spin h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
@@ -213,31 +205,31 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
                 type="button"
                 onClick={() => setIsMenuOpen(prev => !prev)}
                 disabled={isLoading}
-                className="bg-gray-600 hover:bg-gray-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white rounded-lg p-3 h-full flex items-center justify-center transition-colors"
+                className="bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600 text-white rounded-xl p-3 transition-colors flex-shrink-0 shadow-lg"
                 title={t.input.sessionMenu}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.27 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.02-.398-1.11-.94l-.149-.894c-.07-.424-.384-.764-.78-.93-.398-.164-.855-.142-1.205.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </button>
               {isMenuOpen && (
-                <div className="absolute bottom-full right-0 mb-2 w-80 bg-gray-800 border border-gray-600 rounded-md shadow-lg z-20">
+                <div className="absolute bottom-full right-0 mb-3 w-80 bg-gray-800/95 border border-gray-600 rounded-xl shadow-2xl backdrop-blur-md z-50 overflow-hidden animate-fade-in">
                   <ul className="text-sm text-gray-200">
                     <li>
-                      <button onClick={() => { onClearConversationHistory(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-gray-700 rounded-t-md">
+                      <button onClick={() => { onClearConversationHistory(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-gray-700 transition-colors">
                         <strong className="block">{t.input.clearHistory}</strong>
                         <span className="text-xs text-gray-400">{t.input.clearHistoryDesc}</span>
                       </button>
                     </li>
                     <li>
-                      <button onClick={() => { onClearKnowledgeBase(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-gray-700">
+                      <button onClick={() => { onClearKnowledgeBase(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-gray-700 transition-colors">
                         <strong className="block">{t.input.clearBrain}</strong>
                         <span className="text-xs text-gray-400">{t.input.clearBrainDesc}</span>
                       </button>
                     </li>
                     <li className="border-t border-gray-700">
-                      <button onClick={() => { onResetAll(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 text-red-400 hover:bg-red-800/50 rounded-b-md">
+                      <button onClick={() => { onResetAll(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 text-red-400 hover:bg-red-900/30 transition-colors">
                         <strong className="block">{t.input.resetAll}</strong>
                         <span className="text-xs text-gray-400">{t.input.resetAllDesc}</span>
                       </button>
@@ -247,8 +239,8 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
               )}
             </div>
           </div>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 };

@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, FunctionDeclaration, Tool, FunctionCall, GenerateContentResponse, Part } from "@google/genai";
+import { GoogleGenAI, FunctionDeclaration, Tool, FunctionCall, Part, Modality } from "@google/genai";
 import { translations } from "../locales/translations";
 import { Artifact } from "../types";
 
@@ -139,6 +139,48 @@ export type StreamResponseResult = {
     artifacts: Artifact[];
 };
 
+// Generate Image using Gemini 2.5 Flash Image (nano banana)
+export const generateImage = async (prompt: string, aspectRatio: '1:1' | '16:9' | '4:3' | '3:4' | '9:16' = '1:1'): Promise<Artifact | null> => {
+    try {
+        // Gemini 2.5 Flash Image handles aspect ratio and style via text prompt
+        const enhancedPrompt = `${prompt}, aspect ratio ${aspectRatio}, high quality, photorealistic, clear details`;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: {
+                parts: [
+                    { text: enhancedPrompt }
+                ]
+            },
+            config: {
+                responseModalities: [Modality.IMAGE],
+            }
+        });
+
+        if (response.candidates && response.candidates.length > 0) {
+            const parts = response.candidates[0].content.parts;
+            for (const part of parts) {
+                if (part.inlineData) {
+                    const artifact: Artifact = {
+                        id: `img_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                        type: 'image',
+                        mimeType: part.inlineData.mimeType,
+                        data: part.inlineData.data,
+                        description: prompt, // Use original prompt as description
+                        agentId: 'system',
+                        timestamp: Date.now()
+                    };
+                    return artifact;
+                }
+            }
+        }
+        return null;
+    } catch (error) {
+        console.error("Image generation failed:", error);
+        return null;
+    }
+};
+
 export const generateResponseStream = async (
   systemPrompt: string,
   prompt: string,
@@ -163,7 +205,6 @@ export const generateResponseStream = async (
     }
     
     // Enable Code Execution for Gemini Models
-    // This allows the model to write and run Python code for calculations and plotting
     configTools.push({ codeExecution: {} });
     
     if (tools && tools.length > 0) {
@@ -218,8 +259,7 @@ export const generateResponseStream = async (
                    fullText += resultBlock;
                    onChunk(fullText);
               }
-              // Code Execution: Generated Images
-              // Extract image data to Artifacts and replace with Reference Tag in text stream
+              // Code Execution: Generated Images (Matplotlib etc)
               if (part.inlineData) {
                   const mimeType = part.inlineData.mimeType;
                   const data = part.inlineData.data;
@@ -239,7 +279,6 @@ export const generateResponseStream = async (
                       });
 
                       // Inject Reference Tag instead of raw image
-                      // This keeps the context light and allows the President to reference it
                       const referenceTag = `\n<FIGURE ID="${artifactId}" DESC="${description}" />\n`;
                       fullText += referenceTag;
                       onChunk(fullText);
