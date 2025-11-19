@@ -1,3 +1,4 @@
+
 export const B13_PROMPT = `
 # 役割: 財務アナリスト (B13)
 

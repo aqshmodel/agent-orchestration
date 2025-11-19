@@ -1,7 +1,10 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { Agent, Message } from '../types';
-import { TEAM_COLORS } from '../constants';
+import { AGENT_COLORS, TEAM_COLORS } from '../constants';
+
+// Declare Mermaid global
+declare const mermaid: any;
 
 interface AgentCardProps {
   id?: string;
@@ -15,7 +18,7 @@ interface AgentCardProps {
   onClose?: () => void;
 }
 
-const CodeBlock: React.FC<{ code: string }> = ({ code }) => {
+const CodeBlock: React.FC<{ code: string, language?: string }> = ({ code, language = 'text' }) => {
     const [copied, setCopied] = useState(false);
     const handleCopy = () => {
         navigator.clipboard.writeText(code).then(() => {
@@ -23,14 +26,21 @@ const CodeBlock: React.FC<{ code: string }> = ({ code }) => {
             setTimeout(() => setCopied(false), 2000);
         });
     };
+
+    // Special handling for execution results
+    const isExecutionResult = code.includes('[Execution Result:');
+
     return (
-        <div className="relative group my-2">
-            <pre className="bg-gray-800/60 p-3 rounded-md font-mono text-xs text-cyan-200 overflow-x-auto">
+        <div className={`relative group my-2 ${isExecutionResult ? 'border-l-4 border-green-500' : ''}`}>
+            {language && !isExecutionResult && <div className="absolute top-0 right-0 bg-gray-700 text-gray-400 text-[10px] px-2 py-0.5 rounded-bl rounded-tr">{language}</div>}
+            {isExecutionResult && <div className="absolute top-0 right-0 bg-green-900/80 text-green-300 text-[10px] px-2 py-0.5 rounded-bl rounded-tr">Output</div>}
+            
+            <pre className={`bg-gray-800/60 p-3 rounded-md font-mono text-xs overflow-x-auto ${isExecutionResult ? 'text-green-100' : 'text-cyan-200'}`}>
                 <code>{code}</code>
             </pre>
             <button 
                 onClick={handleCopy} 
-                className="absolute top-2 right-2 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-1 px-2 rounded-md transition-all opacity-0 group-hover:opacity-100"
+                className="absolute top-2 right-12 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-1 px-2 rounded-md transition-all opacity-0 group-hover:opacity-100"
                 title="Copy code"
             >
                 {copied ? 'Copied!' : 'Copy'}
@@ -39,16 +49,73 @@ const CodeBlock: React.FC<{ code: string }> = ({ code }) => {
     );
 };
 
+const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
+    const [svg, setSvg] = useState<string>('');
+    const [error, setError] = useState<string | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const id = useRef(`mermaid-${Math.random().toString(36).substr(2, 9)}`).current;
+
+    useEffect(() => {
+        const renderChart = async () => {
+            try {
+                if (typeof mermaid !== 'undefined') {
+                    // Clean up code (remove markdown wrapper if present)
+                    const cleanCode = code.replace(/^```mermaid\n?/, '').replace(/```$/, '').trim();
+                    // Need to ensure element exists before rendering
+                    if(containerRef.current) {
+                         // Reset for re-render
+                         containerRef.current.innerHTML = ''; 
+                         const { svg } = await mermaid.render(id, cleanCode);
+                         setSvg(svg);
+                         setError(null);
+                    }
+                } else {
+                    setError("Mermaid library not loaded");
+                }
+            } catch (err: any) {
+                console.error("Mermaid render error:", err);
+                setError("図の描画に失敗しました: " + err.message);
+            }
+        };
+        // Simple debounce/delay to ensure DOM readiness
+        const timer = setTimeout(renderChart, 100);
+        return () => clearTimeout(timer);
+    }, [code, id]);
+
+    if (error) return (
+        <div className="bg-red-900/30 border border-red-700 text-red-300 p-2 text-xs rounded my-2">
+            <p className="font-bold">Mermaid Error:</p>
+            <p>{error}</p>
+            <pre className="mt-1 opacity-50 text-[10px] overflow-x-auto">{code}</pre>
+        </div>
+    );
+    
+    // Render SVG
+    return (
+        <div ref={containerRef} className="my-4 bg-gray-800/50 p-4 rounded-lg overflow-x-auto flex justify-center border border-gray-700" dangerouslySetInnerHTML={{ __html: svg }} />
+    );
+};
+
 const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, finalReportContent, isCompact, isExpanded, onExpand, onClose }) => {
-  const teamColor = TEAM_COLORS[agent.team];
+  const teamColor = AGENT_COLORS[agent.id] ?? TEAM_COLORS[agent.team];
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [highlight, setHighlight] = useState(false);
   const prevMessagesLength = useRef(messages.length);
+  
+  // Smart Scroll Logic
+  const isUserScrolling = useRef(false);
+
+  const handleScroll = () => {
+    if (scrollContainerRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+        const atBottom = scrollHeight - scrollTop - clientHeight < 50;
+        isUserScrolling.current = !atBottom;
+    }
+  };
 
   const scrollToBottom = () => {
-    if (scrollContainerRef.current) {
+    if (scrollContainerRef.current && !isUserScrolling.current) {
       const { scrollHeight, clientHeight } = scrollContainerRef.current;
-      // Use scrollTop assignment instead of scrollIntoView to prevent scrolling parent containers
       scrollContainerRef.current.scrollTo({
         top: scrollHeight - clientHeight,
         behavior: 'smooth'
@@ -68,6 +135,12 @@ const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, 
     }
   }, [messages, isCompact]);
 
+  useEffect(() => {
+      if (isThinking && !isCompact) {
+          scrollToBottom();
+      }
+  }, [isThinking, isCompact]);
+
   const handleDownload = () => {
     if (!finalReportContent) return;
     const blob = new Blob([finalReportContent], { type: 'text/markdown;charset=utf-8' });
@@ -83,25 +156,45 @@ const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, 
 
   const TypingIndicator = () => (
     <div className="flex items-center space-x-1 p-2">
-      <span className="text-gray-400 text-sm">思考中</span>
-      <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse [animation-delay:-0.3s]"></div>
-      <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse [animation-delay:-0.15s]"></div>
-      <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse"></div>
+      <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse [animation-delay:-0.3s]"></div>
+      <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse [animation-delay:-0.15s]"></div>
+      <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse"></div>
     </div>
   );
   
   const renderContent = (content: string) => {
+    // Split by code blocks (```...```)
     const parts = content.split(/(```[\s\S]*?```)/g).filter(Boolean);
+    
     return parts.map((part, i) => {
         if (part.startsWith('```') && part.endsWith('```')) {
-            const code = part.slice(3, -3).trim();
-            return <CodeBlock key={i} code={code} />;
+            // Extract code content and potential language
+            const firstLine = part.split('\n')[0];
+            const language = firstLine.replace(/^```/, '').trim();
+            const code = part.slice(firstLine.length, -3).trim();
+            
+            if (language === 'mermaid') {
+                return <MermaidBlock key={i} code={code} />;
+            }
+            return <CodeBlock key={i} code={code} language={language} />;
         }
 
+        // Normal text processing with Markdown-like image handling
         return part.trim().split(/\n\s*\n/).map((paragraph, j) => {
             const lines = paragraph.split('\n').filter(line => line.trim() !== '');
             const isUnorderedList = lines.every(line => line.trim().startsWith('* ') || line.trim().startsWith('- '));
             const isOrderedList = lines.every(line => /^\d+\.\s/.test(line.trim()));
+
+            // Check for inline image (e.g., from code execution or file upload context simulation)
+            const imgMatch = paragraph.match(/!\[(.*?)\]\((data:image\/.*?;base64,.*?)\)/);
+            if (imgMatch) {
+                return (
+                    <div key={`${i}-${j}`} className="my-3">
+                        <img src={imgMatch[2]} alt={imgMatch[1]} className="max-w-full h-auto rounded border border-gray-600 shadow-lg mx-auto" />
+                        <p className="text-center text-xs text-gray-500 mt-1">{imgMatch[1]}</p>
+                    </div>
+                );
+            }
 
             if (isUnorderedList) {
                 return (
@@ -118,7 +211,7 @@ const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, 
                 );
             }
             
-            return <p key={`${i}-${j}`} className="my-2 whitespace-pre-wrap">{paragraph}</p>;
+            return <p key={`${i}-${j}`} className="my-2 whitespace-pre-wrap break-words leading-relaxed">{paragraph}</p>;
         });
     });
   };
@@ -130,25 +223,37 @@ const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, 
         ? 'h-auto justify-center' 
         : 'h-[240px]';
   
-  // Only show expand button if there are messages or if it's the president/orchestrator with content
   const showExpandButton = messages.length > 0;
 
   return (
-    <div id={id} className={`flex flex-col border ${teamColor.border} rounded-lg ${heightClass} glass-effect ${teamColor.bg} ${isThinking && !isCompact ? 'thinking-border-animation' : ''} ${highlight && !isCompact ? 'flash-border-animation' : ''} transition-all duration-300 ${!isExpanded ? 'hover:-translate-y-1' : ''}`}>
-      <div className={`p-3 ${!isCompact || isExpanded ? `border-b ${teamColor.border}` : ''} flex justify-between items-center sticky top-0 z-10 ${teamColor.bg.replace('/50', '/90')} backdrop-blur-md rounded-t-lg`}>
-        <div>
-          {(!isCompact || isExpanded) && <p className={`text-xs ${teamColor.text} font-bold opacity-80`}>{agent.team}</p>}
-          <h3 className="font-bold text-sm text-white">{agent.name}</h3>
-          <p className={`text-xs ${teamColor.text}`}>{agent.role}</p>
+    <div id={id} className={`flex flex-col border ${teamColor.border} rounded-lg ${heightClass} glass-effect ${teamColor.bg} ${isThinking ? 'thinking-border-animation ring-1 ring-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.3)]' : ''} ${!isThinking && highlight && !isCompact ? 'flash-border-animation' : ''} transition-all duration-300 ${!isExpanded ? 'hover:-translate-y-1' : ''}`}>
+      <div className={`p-3 ${!isCompact || isExpanded ? `border-b ${teamColor.border}` : ''} flex justify-between items-center sticky top-0 z-10 ${teamColor.bg.replace('/60', '/95')} backdrop-blur-md rounded-t-lg`}>
+        <div className="flex items-center gap-2 w-full overflow-hidden">
+           {isThinking && (
+               <div className="flex-shrink-0 flex items-center justify-center w-4 h-4">
+                  <svg className="animate-spin h-4 w-4 text-cyan-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+               </div>
+           )}
+           <div className="overflow-hidden w-full">
+              {(!isCompact || isExpanded) && <p className={`text-xs ${teamColor.text} font-bold opacity-80 truncate`}>{agent.team}</p>}
+              <h3 className="font-bold text-sm text-white break-words leading-tight mb-0.5">{agent.name}</h3>
+              <p className={`text-[10px] ${teamColor.text} opacity-90 truncate`}>{agent.role}</p>
+           </div>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1 flex-shrink-0 ml-1">
+            {isThinking && (
+                <span className="text-[10px] font-bold text-cyan-400 bg-cyan-900/80 px-1.5 py-0.5 rounded border border-cyan-700 animate-pulse">Thinking</span>
+            )}
             {finalReportContent && (!isCompact || isExpanded) && (
               <button
                 onClick={handleDownload}
                 className="bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors"
                 title="最終レポートをダウンロード"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                 </svg>
               </button>
@@ -178,10 +283,14 @@ const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, 
         </div>
       </div>
       {(!isCompact || isExpanded) && (
-        <div ref={scrollContainerRef} className="flex-grow p-3 overflow-y-auto text-sm space-y-2 relative min-h-0">
+        <div 
+            ref={scrollContainerRef} 
+            onScroll={handleScroll} 
+            className="flex-grow p-3 overflow-y-auto text-sm space-y-2 relative min-h-0"
+        >
             {messages.map((msg, index) => (
             <div key={index} className={`${msg.sender === 'user' ? 'text-cyan-300' : 'text-gray-200'}`}>
-                <p className="font-mono text-xs text-gray-500">{msg.timestamp}</p>
+                <p className="font-mono text-[10px] text-gray-500 mb-0.5 opacity-70">{msg.timestamp} - {msg.sender.toUpperCase()}</p>
                 <div>{renderContent(msg.content)}</div>
             </div>
             ))}

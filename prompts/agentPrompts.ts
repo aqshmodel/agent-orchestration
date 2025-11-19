@@ -1,3 +1,4 @@
+
 import { COMMON_POSTAMBLE } from './common';
 import { PRESIDENT_PROMPT } from './agents/president';
 import { ORCHESTRATOR_PROMPT } from './agents/orchestrator';
@@ -61,6 +62,12 @@ import { B27_PROMPT } from './agents/B27_tech_support';
 import { B28_PROMPT } from './agents/B28_office_manager';
 import { B29_PROMPT } from './agents/B29_supply_chain';
 import { B30_PROMPT } from './agents/B30_event_planner';
+import { C1_PROMPT } from './agents/C1_data_arch';
+import { C2_PROMPT } from './agents/C2_prompt_eng';
+import { C3_PROMPT } from './agents/C3_growth_hacker';
+import { C4_PROMPT } from './agents/C4_public_affairs';
+import { C5_PROMPT } from './agents/C5_economic_sys';
+import { C6_PROMPT } from './agents/C6_wellbeing';
 
 export const AGENT_PROMPTS: Record<string, string> = {
   president: PRESIDENT_PROMPT,
@@ -125,4 +132,10 @@ export const AGENT_PROMPTS: Record<string, string> = {
   B28: B28_PROMPT + COMMON_POSTAMBLE,
   B29: B29_PROMPT + COMMON_POSTAMBLE,
   B30: B30_PROMPT + COMMON_POSTAMBLE,
+  C1: C1_PROMPT + COMMON_POSTAMBLE,
+  C2: C2_PROMPT + COMMON_POSTAMBLE,
+  C3: C3_PROMPT + COMMON_POSTAMBLE,
+  C4: C4_PROMPT + COMMON_POSTAMBLE,
+  C5: C5_PROMPT + COMMON_POSTAMBLE,
+  C6: C6_PROMPT + COMMON_POSTAMBLE,
 };

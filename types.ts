@@ -1,15 +1,17 @@
+
 export enum Team {
   LEADERSHIP = "リーダーシップ",
-  STRATEGIC_INSIGHT = "戦略インサイトチーム",
+  STRATEGY_PLANNING = "戦略計画チーム",
+  INSIGHT_CULTURE = "インサイト＆カルチャーチーム",
   PRODUCT_DESIGN = "製品デザインチーム",
-  TECH_DEVELOPMENT = "技術開発チーム",
-  INFRA_SECURITY = "インフラ＆セキュリティチーム",
-  MARKETING_BRAND = "マーケティング＆ブランドチーム",
-  SALES_PARTNERSHIPS = "セールス＆パートナーシップチーム",
-  COMMUNICATIONS_CUSTOMER_RELATIONS = "広報・顧客リレーションチーム",
-  FINANCE_BUSINESS_STRATEGY = "財務・事業戦略チーム",
-  PEOPLE_OPERATIONS = "人事・オペレーションチーム",
-  LEGAL_COMPLIANCE = "法務・コンプライアンスチーム",
+  ADVANCED_DEV = "アドバンスト開発チーム",
+  OPS_INFRA = "運用＆インフラチーム",
+  SECURITY_GOV = "セキュリティ＆ガバナンスチーム",
+  GROWTH_MARKETING = "グロースマーケティングチーム",
+  SALES = "セールスチーム",
+  RELATIONS_ASSETS = "渉外・広報チーム",
+  FINANCE_SCM = "財務・SCMチーム",
+  HR_ADMIN = "人事・総務チーム",
 }
 
 export interface Agent {
