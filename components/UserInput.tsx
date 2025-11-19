@@ -1,15 +1,6 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-
-interface UserInputProps {
-  onSubmit: (prompt: string, files: FileData[]) => void;
-  onResetAll: () => void;
-  onClearConversationHistory: () => void;
-  onClearKnowledgeBase: () => void;
-  isLoading: boolean;
-  currentStatus: string;
-}
+import { useAgis } from '../hooks/useAgis';
 
 export interface FileData {
   name: string;
@@ -18,7 +9,17 @@ export interface FileData {
   isText: boolean;
 }
 
-const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConversationHistory, onClearKnowledgeBase, isLoading, currentStatus }) => {
+const UserInput: React.FC = () => {
+  const {
+      handleSendMessage: onSubmit,
+      handleResetAll: onResetAll,
+      handleClearConversationHistory: onClearConversationHistory,
+      handleClearKnowledgeBase: onClearKnowledgeBase,
+      isLoading,
+      isWaitingForHuman,
+      currentStatus
+  } = useAgis();
+  
   const [prompt, setPrompt] = useState('');
   const [isComposing, setIsComposing] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<FileData[]>([]);
@@ -27,6 +28,8 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { t } = useLanguage();
+
+  const isInputLoading = isLoading || isWaitingForHuman;
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -95,7 +98,7 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if ((prompt.trim() || selectedFiles.length > 0) && !isLoading) {
+    if ((prompt.trim() || selectedFiles.length > 0) && !isInputLoading) {
       onSubmit(prompt, selectedFiles);
       setPrompt('');
       setSelectedFiles([]);
@@ -104,7 +107,7 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
 
   return (
     <div className="fixed bottom-8 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-full md:max-w-4xl z-40 flex flex-col items-center pointer-events-none">
-       {isLoading && currentStatus && (
+       {isInputLoading && currentStatus && (
         <div className="pointer-events-auto mb-4 text-xs font-mono text-cyan-300 bg-gray-900/90 border border-cyan-500/50 px-4 py-2 rounded-full shadow-[0_0_10px_rgba(34,211,238,0.3)] backdrop-blur-md animate-fade-in flex items-center gap-2">
            <div className="w-2 h-2 bg-cyan-400 rounded-full animate-ping"></div>
            {currentStatus}
@@ -151,7 +154,7 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isLoading}
+              disabled={isInputLoading}
               className="text-gray-400 hover:text-cyan-400 transition-colors p-3 rounded-xl hover:bg-gray-800/50 flex-shrink-0"
               title={t.input.attach}
             >
@@ -176,7 +179,7 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
               placeholder={t.input.placeholder}
               className="flex-grow bg-transparent border-none text-gray-100 placeholder-gray-400 focus:ring-0 resize-none py-3 pl-4 max-h-[200px] custom-scrollbar leading-relaxed caret-cyan-400"
               rows={1}
-              disabled={isLoading}
+              disabled={isInputLoading}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
                   e.preventDefault();
@@ -186,10 +189,10 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
             />
             <button
               type="submit"
-              disabled={isLoading || (!prompt.trim() && selectedFiles.length === 0)}
+              disabled={isInputLoading || (!prompt.trim() && selectedFiles.length === 0)}
               className="bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-xl p-3 transition-all flex-shrink-0 shadow-[0_0_10px_rgba(8,145,178,0.5)] hover:shadow-[0_0_15px_rgba(34,211,238,0.6)]"
             >
-              {isLoading ? (
+              {isInputLoading ? (
                 <svg className="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -204,7 +207,7 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
               <button
                 type="button"
                 onClick={() => setIsMenuOpen(prev => !prev)}
-                disabled={isLoading}
+                disabled={isInputLoading}
                 className="bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600 text-white rounded-xl p-3 transition-colors flex-shrink-0 shadow-lg"
                 title={t.input.sessionMenu}
               >

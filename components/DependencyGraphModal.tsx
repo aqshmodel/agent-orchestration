@@ -30,9 +30,9 @@ const DependencyGraphModal: React.FC<DependencyGraphModalProps> = ({ events, sel
       return agent;
   };
   
-  // Helper to get translated name
+  // Helper to get translated name safely
   const getAgentName = (agent: Agent) => {
-      const transAgent = (t.agents as any)[agent.id];
+      const transAgent = t.agents[agent.id];
       return transAgent ? transAgent.name : agent.name;
   };
 

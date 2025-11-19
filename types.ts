@@ -46,3 +46,131 @@ export interface Artifact {
   agentId: string;
   timestamp: number;
 }
+
+// i18n Type Definitions
+export interface TranslationResource {
+  app: {
+    title: string;
+    subtitle: string;
+    contextUsage: string;
+    chars: string;
+    contextHigh: string;
+    modelHigh: string;
+    modelLow: string;
+    model25Pro: string;
+    modelFlash: string;
+    btnBrain: string;
+    btnGraph: string;
+    btnSession: string;
+    btnError: string;
+  };
+  agentCard: {
+    thinking: string;
+    download: string;
+    saveMd: string;
+    saveHtml: string;
+    saveWord: string;
+    close: string;
+    expand: string;
+    copy: string;
+    copied: string;
+    generatingImage: string;
+    downloadImage: string;
+  };
+  input: {
+    placeholder: string;
+    send: string;
+    attach: string;
+    sessionMenu: string;
+    clearHistory: string;
+    clearHistoryDesc: string;
+    clearBrain: string;
+    clearBrainDesc: string;
+    resetAll: string;
+    resetAllDesc: string;
+    audio: string;
+    text: string;
+    status_loading: string;
+  };
+  status: {
+    orchestratorThinking: string;
+    presidentThinking: string;
+    presidentReviewing: string;
+    presidentReinstructing: string;
+    agentsWorking: string;
+    agentsReported: string;
+    memberAdded: string;
+    error: string;
+    completed: string;
+    reset: string;
+    historyCleared: string;
+    brainCleared: string;
+    sessionSaved: string;
+    sessionLoaded: string;
+    sessionDeleted: string;
+    saveFailed: string;
+    loadFailed: string;
+    deleteFailed: string;
+    loopLimit: string;
+  };
+  modal: {
+    kbTitle: string;
+    kbCopy: string;
+    kbCopied: string;
+    kbEmpty: string;
+    kbChars: string;
+    kbTabInsights: string;
+    kbTabImages: string;
+    kbTabDiagrams: string;
+    kbDownload: string;
+    kbNoImages: string;
+    kbNoDiagrams: string;
+    kbDiagramSource: string;
+    graphTitle: string;
+    graphDesc: string;
+    sessionTitle: string;
+    sessionSaveTitle: string;
+    sessionPlaceholder: string;
+    sessionSaveBtn: string;
+    sessionNewBtn: string;
+    sessionNewConfirm: string;
+    sessionListTitle: string;
+    sessionEmpty: string;
+    sessionDeleteConfirm: string;
+    questionTitle: string;
+    questionPlaceholder: string;
+    questionSubmit: string;
+    errorTitle: string;
+    errorEmpty: string;
+    errorClear: string;
+  };
+  teams: Record<string, string>; // Allow flexible team keys but generally Team enum values
+  agents: Record<string, { name: string; role: string }>;
+  prompts: {
+    initialMessage: string;
+    userRequestPrefix: string;
+    presidentInstructionReceived: string;
+    userAnswerReceived: string;
+    reinstructReceived: string;
+    orchestratorReviewRequest: string;
+    agentsReportedPrompt: string;
+    memberAddedPrompt: string;
+    checkCompletePrompt: string;
+    evaluateSituationPrompt: string;
+    taskInstruction: string;
+    consultation: string;
+    reviewRequest: string;
+    systemInstructionOverride: string;
+    orchestratorMandatoryRules: string;
+  };
+  context: {
+    knowledgeBaseHeader: string;
+    contextLogHeader: string;
+    ragHeader: string;
+    fileName: string;
+  };
+  errors: {
+    mermaidRender: string;
+    mermaidLib: string;
+  };
+}
