@@ -1,8 +1,9 @@
 
+
 import React, { useRef, useEffect, useState } from 'react';
 import { Agent, Message, Artifact } from '../../types';
 import { AGENT_COLORS, TEAM_COLORS } from '../../constants';
-import { generateWordDoc, htmlToMarkdown } from '../../utils/reportGenerator';
+import { generateDocxBlob, htmlToMarkdown } from '../../utils/reportGenerator';
 import { extractHtmlFromContent } from '../../utils/contentProcessor';
 import { useSmartScroll } from '../../hooks/useSmartScroll';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -101,9 +102,10 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
   const handleDownloadWord = () => {
       if (!finalReportContent) return;
       const sourceContent = htmlPreviewCode || finalReportContent;
-      const wordContent = generateWordDoc(sourceContent, 'A.G.I.S. Report', language);
-      const blob = new Blob([wordContent], { type: 'application/msword;charset=utf-8' });
-      downloadBlob(blob, `AGIS-Report-${new Date().toISOString().slice(0, 10)}.doc`);
+      const blob = generateDocxBlob(sourceContent, 'A.G.I.S. Report', language);
+      if (blob) {
+          downloadBlob(blob, `AGIS-Report-${new Date().toISOString().slice(0, 10)}.docx`);
+      }
   };
   
   const handleDownloadHtml = () => {
@@ -224,7 +226,7 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
                              onClick={handleDownloadWord}
                              className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center border-t border-gray-700 whitespace-nowrap"
                           >
-                              <span className="bg-blue-900 text-blue-200 text-[10px] p-1 rounded mr-3 font-mono w-10 text-center">.doc</span>
+                              <span className="bg-blue-900 text-blue-200 text-[10px] p-1 rounded mr-3 font-mono w-10 text-center">.docx</span>
                               {t.agentCard.saveWord}
                           </button>
                       </div>

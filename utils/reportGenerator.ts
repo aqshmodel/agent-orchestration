@@ -1,4 +1,5 @@
 
+
 import { Artifact } from "../types";
 
 declare const marked: any;
@@ -246,7 +247,11 @@ export const generateHtmlReport = (markdownContent: string, title: string = 'A.G
 </html>`;
 };
 
-export const generateWordDoc = (content: string, title: string = 'A.G.I.S. Report', language: 'ja' | 'en' = 'ja'): string => {
+/**
+ * Generates an HTML string that can be converted to Word (old method, deprecated for Mac compatibility).
+ * Kept for internal logic, but exposed for conversion.
+ */
+export const generateWordDocHtml = (content: string, title: string = 'A.G.I.S. Report', language: 'ja' | 'en' = 'ja'): string => {
     const isHtml = content.trim().match(/^<!DOCTYPE html>|^<html/i);
     let bodyContent = "";
 
@@ -372,4 +377,24 @@ export const generateWordDoc = (content: string, title: string = 'A.G.I.S. Repor
     </div>
 </body>
 </html>`;
+};
+
+// Compatibility wrapper: Keeps the name generateWordDoc but returns string for simple usage
+// For real .docx generation, use generateDocxBlob
+export const generateWordDoc = (content: string, title: string = 'A.G.I.S. Report', language: 'ja' | 'en' = 'ja'): string => {
+    return generateWordDocHtml(content, title, language);
+}
+
+export const generateDocxBlob = (content: string, title: string = 'A.G.I.S. Report', language: 'ja' | 'en' = 'ja'): Blob | null => {
+    const html = generateWordDocHtml(content, title, language);
+    
+    if (typeof window.htmlDocx !== 'undefined') {
+        return window.htmlDocx.asBlob(html, {
+             orientation: 'portrait',
+             margins: { top: 1440, right: 1440, bottom: 1440, left: 1440 } // Twips
+        });
+    }
+    
+    // Fallback to simple fake-doc if library is missing
+    return new Blob([html], { type: 'application/msword;charset=utf-8' });
 };

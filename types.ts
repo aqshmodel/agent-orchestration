@@ -48,6 +48,14 @@ export interface Artifact {
   timestamp: number;
 }
 
+declare global {
+  interface Window {
+    htmlDocx: {
+      asBlob: (html: string, options?: any) => Blob;
+    };
+  }
+}
+
 // i18n Type Definitions
 export interface TranslationResource {
   app: {
