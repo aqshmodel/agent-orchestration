@@ -10,6 +10,7 @@ import ErrorLogModal from './components/ErrorLogModal';
 import KnowledgeBaseModal from './components/KnowledgeBaseModal';
 import SessionManagerModal from './components/SessionManagerModal';
 import { useAgis } from './hooks/useAgis';
+import { useLanguage } from './contexts/LanguageContext';
 
 const App: React.FC = () => {
   const {
@@ -51,6 +52,8 @@ const App: React.FC = () => {
     setIsSessionManagerOpen,
     setSelectedModel,
   } = useAgis();
+  
+  const { t, language, setLanguage } = useLanguage();
 
   // Dynamic Background Logic
   const getBackgroundGradient = (status: string) => {
@@ -164,14 +167,14 @@ const App: React.FC = () => {
         <div className="flex-1 flex flex-col items-start">
           <div className="w-48">
              <div className="flex justify-between text-[10px] text-gray-400 mb-1">
-                 <span>Context Usage</span>
-                 <span>{contextChars.toLocaleString()} chars</span>
+                 <span>{t.app.contextUsage}</span>
+                 <span>{contextChars.toLocaleString()} {t.app.chars}</span>
              </div>
              <div className="w-full bg-gray-700 rounded-full h-1.5 overflow-hidden" title={`${Math.round(usagePercentage)}% used`}>
                  <div className={`h-1.5 rounded-full ${usageColor} transition-all duration-500`} style={{ width: `${usagePercentage}%` }}></div>
              </div>
              {contextChars > 800000 && (
-                 <p className="text-[10px] text-red-400 mt-1 animate-pulse">メモリ使用量が高負荷です。対話履歴のクリアを推奨します。</p>
+                 <p className="text-[10px] text-red-400 mt-1 animate-pulse">{t.app.contextHigh}</p>
              )}
           </div>
           <div className="mt-2">
@@ -180,16 +183,16 @@ const App: React.FC = () => {
                  onChange={(e) => setSelectedModel(e.target.value)}
                  className="bg-gray-800 border border-gray-600 text-xs text-gray-300 rounded px-2 py-1 focus:outline-none focus:border-cyan-500"
              >
-                 <option value="gemini-3-pro-preview-high">Gemini 3.0 Pro (High Reasoning)</option>
-                 <option value="gemini-3-pro-preview-low">Gemini 3.0 Pro (Fast Reasoning)</option>
-                 <option value="gemini-flash-latest">Gemini 2.5 Flash (Fast)</option>
+                 <option value="gemini-3-pro-preview-high">{t.app.modelHigh}</option>
+                 <option value="gemini-3-pro-preview-low">{t.app.modelLow}</option>
+                 <option value="gemini-flash-latest">{t.app.modelFlash}</option>
              </select>
           </div>
         </div>
         
         <div className="flex-1 text-center">
-            <h1 className="text-2xl font-bold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">A.G.I.S.</h1>
-            <p className="text-gray-400 text-[10px] tracking-widest">AI GENERATIVE INTELLIGENCE SYSTEM</p>
+            <h1 className="text-2xl font-bold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">{t.app.title}</h1>
+            <p className="text-gray-400 text-[10px] tracking-widest">{t.app.subtitle}</p>
         </div>
         
         <div className="flex-1 flex justify-end items-center space-x-3">
@@ -197,33 +200,42 @@ const App: React.FC = () => {
              <button 
                 onClick={() => setIsKnowledgeBaseOpen(true)} 
                 className="bg-purple-900/60 hover:bg-purple-800/80 border border-purple-600 text-purple-200 text-xs font-bold py-1.5 px-3 rounded-md transition-colors flex items-center gap-2" 
-                title="組織の脳（知識ベース）"
+                title={t.app.btnBrain}
             >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
-                <span className="hidden sm:inline">Brain</span>
+                <span className="hidden sm:inline">{t.app.btnBrain}</span>
             </button>
 
             {/* Session Manager Button */}
             <button 
                 onClick={() => setIsSessionManagerOpen(true)} 
                 className="bg-cyan-900/60 hover:bg-cyan-800/80 border border-cyan-600 text-cyan-200 text-xs font-bold py-1.5 px-3 rounded-md transition-colors flex items-center gap-2" 
-                title="セッション管理"
+                title={t.app.btnSession}
             >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
                 </svg>
-                <span className="hidden sm:inline">Session</span>
+                <span className="hidden sm:inline">{t.app.btnSession}</span>
             </button>
 
             {errorLogs.length > 0 && (
-              <button onClick={() => setIsErrorLogModalOpen(true)} className="bg-red-800/50 hover:bg-red-700/50 text-white text-xs font-bold py-1.5 px-2 rounded-md transition-colors animate-pulse" title="エラーログ">
+              <button onClick={() => setIsErrorLogModalOpen(true)} className="bg-red-800/50 hover:bg-red-700/50 text-white text-xs font-bold py-1.5 px-2 rounded-md transition-colors animate-pulse" title={t.app.btnError}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.21 3.03-1.742 3.03H4.42c-1.532 0-2.492-1.696-1.742-3.03l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                   </svg>
               </button>
             )}
+            
+            {/* Language Toggle */}
+            <button
+              onClick={() => setLanguage(language === 'ja' ? 'en' : 'ja')}
+              className="ml-2 text-[10px] font-mono bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 border border-gray-600 rounded px-2 py-1 transition-colors"
+              title="Switch Language"
+            >
+              {language.toUpperCase()}
+            </button>
         </div>
       </header>
       
@@ -246,7 +258,8 @@ const App: React.FC = () => {
             <div className="space-y-4">
               {teamOrder.map(teamName => (
                 <div key={teamName}>
-                  <h3 className={`text-sm font-bold p-2 rounded-t-lg ${TEAM_COLORS[teamName].bg} ${TEAM_COLORS[teamName].text} border-b-2 ${TEAM_COLORS[teamName].border}`}>{teamName}</h3>
+                  {/* Translate Team Name: Use type assertion for t.teams access */}
+                  <h3 className={`text-sm font-bold p-2 rounded-t-lg ${TEAM_COLORS[teamName].bg} ${TEAM_COLORS[teamName].text} border-b-2 ${TEAM_COLORS[teamName].border}`}>{(t.teams as any)[teamName] || teamName}</h3>
                   <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 p-2 rounded-b-lg ${TEAM_COLORS[teamName].bg}`}>
                     {(specialistAgentsByTeam[teamName] || []).map(agent => (
                        <AgentCard 

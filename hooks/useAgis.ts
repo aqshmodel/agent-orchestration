@@ -6,6 +6,7 @@ import { generateResponseStream, UploadedFile } from '../services/geminiService'
 import { playStartSound, playNotificationSound, playCompletionSound } from '../services/soundService';
 import { Type, FunctionDeclaration } from '@google/genai';
 import { SessionMetadata } from '../components/SessionManagerModal';
+import { useLanguage } from '../contexts/LanguageContext';
 
 // Define Orchestrator Tools
 const ORCHESTRATOR_TOOLS: FunctionDeclaration[] = [
@@ -104,12 +105,6 @@ const ORCHESTRATOR_TOOLS: FunctionDeclaration[] = [
   },
 ];
 
-const INITIAL_MESSAGE: Message = {
-    sender: 'agent',
-    content: "A.G.I.S.へようこそ。私はプレジデントです。\nプロジェクトの目標や解決したい課題を教えてください。最適なチームを編成し、解決策を提示します。",
-    timestamp: new Date().toLocaleTimeString()
-};
-
 // Helper to get model configuration based on UI selection
 const getModelConfig = (selection: string) => {
     if (selection === 'gemini-3-pro-preview-high') {
@@ -130,9 +125,7 @@ const getModelConfig = (selection: string) => {
 
 export const useAgis = () => {
   // State definitions
-  const [messages, setMessages] = useState<Record<string, Message[]>>({
-      'president': [INITIAL_MESSAGE]
-  });
+  const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [thinkingAgents, setThinkingAgents] = useState<Set<string>>(new Set());
   const [finalReport, setFinalReport] = useState<string | null>(null);
@@ -149,14 +142,43 @@ export const useAgis = () => {
   const [systemStatus, setSystemStatus] = useState<'idle' | 'processing' | 'waiting' | 'completed' | 'error'>('idle');
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState('gemini-3-pro-preview-high');
+  
+  const { language, t } = useLanguage();
 
   // Refs
   const conversationHistoryRef = useRef('');
   const sharedKnowledgeBaseRef = useRef('');
   const processingRef = useRef(false); // To prevent double submission
 
+  // Initialization and Language Change Handling
+  useEffect(() => {
+     // If empty (first load) OR if only initial message exists and language changed, update it
+     const presidentMessages = messages['president'] || [];
+     const isInitialState = presidentMessages.length <= 1; // 0 or 1 message
+     
+     if (isInitialState) {
+         // We assume if length is 1, it's the welcome message. 
+         // If user has started chatting, length > 1, we don't touch history.
+         if (presidentMessages.length === 0 || presidentMessages[0].sender === 'agent') {
+              setMessages({
+                 'president': [{
+                    sender: 'agent',
+                    content: t.prompts.initialMessage,
+                    timestamp: presidentMessages[0]?.timestamp || new Date().toLocaleTimeString()
+                }]
+             });
+         }
+     }
+  }, [language]);
+
   // Computed
   const contextChars = conversationHistoryRef.current.length + sharedKnowledgeBaseRef.current.length;
+  
+  // System Instruction for Language Override
+  const getSystemInstruction = (basePrompt: string) => {
+      // Always append the override instruction from translations if it exists (it's empty string for 'ja')
+      return basePrompt + t.prompts.systemInstructionOverride;
+  };
 
   // Helper functions
   const addErrorLog = (message: string) => {
@@ -209,7 +231,11 @@ export const useAgis = () => {
   const clearErrorLogs = () => setErrorLogs([]);
 
   const handleResetAll = () => {
-      setMessages({ 'president': [INITIAL_MESSAGE] }); // Reset with initial message
+      setMessages({ 'president': [{
+          sender: 'agent',
+          content: t.prompts.initialMessage,
+          timestamp: new Date().toLocaleTimeString()
+      }] }); 
       setIsLoading(false);
       setThinkingAgents(new Set());
       setFinalReport(null);
@@ -223,18 +249,18 @@ export const useAgis = () => {
       setCurrentSessionId(null);
       conversationHistoryRef.current = '';
       sharedKnowledgeBaseRef.current = '';
-      showToast('セッションをリセットしました', 'info');
+      showToast(t.status.reset, 'info');
   };
 
   const handleClearConversationHistory = () => {
       setMessages({});
       conversationHistoryRef.current = '';
-      showToast('対話履歴をクリアしました（知識ベースは維持されます）', 'info');
+      showToast(t.status.historyCleared, 'info');
   };
 
   const handleClearKnowledgeBase = () => {
       sharedKnowledgeBaseRef.current = '';
-      showToast('知識ベースをクリアしました', 'info');
+      showToast(t.status.brainCleared, 'info');
   };
 
     const serializeSession = (name: string) => {
@@ -271,10 +297,10 @@ export const useAgis = () => {
             localStorage.setItem(`agis_session_${sessionData.id}`, JSON.stringify(sessionData));
             
             setCurrentSessionId(sessionData.id);
-            showToast('セッションを保存しました');
+            showToast(t.status.sessionSaved);
         } catch (e) {
             console.error(e);
-            showToast('セッションの保存に失敗しました', 'error');
+            showToast(t.status.saveFailed, 'error');
         }
     };
 
@@ -294,10 +320,10 @@ export const useAgis = () => {
             sharedKnowledgeBaseRef.current = sessionData.state.sharedKnowledgeBase;
             
             setCurrentSessionId(id);
-            showToast('セッションを読み込みました');
+            showToast(t.status.sessionLoaded);
          } catch (e) {
              console.error(e);
-             showToast('セッションの読み込みに失敗しました', 'error');
+             showToast(t.status.loadFailed, 'error');
          }
     };
 
@@ -313,10 +339,10 @@ export const useAgis = () => {
             if (currentSessionId === id) {
                 handleNewSession();
             }
-            showToast('セッションを削除しました');
+            showToast(t.status.sessionDeleted);
         } catch (e) {
             console.error(e);
-            showToast('削除に失敗しました', 'error');
+            showToast(t.status.deleteFailed, 'error');
         }
     };
     
@@ -338,14 +364,15 @@ export const useAgis = () => {
 
     while (loopCount < MAX_LOOPS && !missionComplete) {
         loopCount++;
-        setCurrentStatus(`オーケストレーターが思考中... (Cycle ${loopCount})`);
+        setCurrentStatus(t.status.orchestratorThinking.replace('{count}', loopCount.toString()));
         setAgentThinking('orchestrator', true);
 
         // Force the model to output thought text BEFORE using tools
-        const enforcedSystemPrompt = orchestrator.systemPrompt + `
+        // Inject Language override here
+        const enforcedSystemPrompt = getSystemInstruction(orchestrator.systemPrompt) + `
 
 【重要: 行動規範】
-1. **思考の開示 (Mandatory):** ユーザーに対して、現在の状況分析、次の手、その理由を説明する「思考プロセス (Thought)」を**必ず**日本語のテキストで出力してください。
+1. **思考の開示 (Mandatory):** ユーザーに対して、現在の状況分析、次の手、その理由を説明する「思考プロセス (Thought)」を**必ず**テキストで出力してください。
    - 「○○について考える必要がある」「次は××を呼び出す」といった思考の流れを明示してください。
 2. **ツールの使用:** 行動（エージェントの呼び出し、完了報告など）は、**必ず**提供されたツール (Function Calling) を使用して実行してください。
 3. **フォーマット:** 
@@ -367,7 +394,8 @@ export const useAgis = () => {
             false, 
             undefined, 
             ORCHESTRATOR_TOOLS,
-            activeThinkingConfig // Use active config
+            activeThinkingConfig, // Use active config
+            language // Pass language
         );
         
         let responseText = orchestratorResponse.text || '';
@@ -405,16 +433,16 @@ export const useAgis = () => {
                 missionComplete = true;
                 const finalReportText = args.final_report;
                 
-                setCurrentStatus('プレジデントが最終レポートをレビュー中...');
+                setCurrentStatus(t.status.presidentReviewing);
                 
                 // Show review request to President
-                const reviewPrompt = `オーケストレーターから最終報告書が提出されました。\n\n${finalReportText}\n\nこの報告書を評価基準に基づいてレビューし、承認するか、修正を指示（REINSTRUCT）してください。`;
+                const reviewPrompt = t.prompts.orchestratorReviewRequest.replace('{finalReportText}', finalReportText);
                 addMessage('president', { sender: 'user', content: reviewPrompt, timestamp: new Date().toLocaleTimeString() });
 
                 setAgentThinking('president', true);
                 
                 const reviewResponse = await generateResponseStream(
-                    president.systemPrompt,
+                    getSystemInstruction(president.systemPrompt),
                     reviewPrompt,
                     (chunk) => updateAgentLastMessage('president', chunk),
                     conversationHistoryRef.current,
@@ -423,7 +451,8 @@ export const useAgis = () => {
                     false,
                     undefined,
                     undefined,
-                    activeThinkingConfig // Use active config
+                    activeThinkingConfig, // Use active config
+                    language // Pass language
                 );
                 
                 setAgentThinking('president', false);
@@ -432,15 +461,15 @@ export const useAgis = () => {
 
                 if (reviewText.includes('REINSTRUCT::')) {
                         missionComplete = false;
-                        currentPrompt = `プレジデントから修正指示（REINSTRUCT）がありました。\n\n${reviewText}\n\n指示に従い、タスクを再開してください。`;
+                        currentPrompt = t.prompts.reinstructReceived.replace('{reviewText}', reviewText);
                         // Show reinstruct order to Orchestrator
                         addMessage('orchestrator', { sender: 'user', content: currentPrompt, timestamp: new Date().toLocaleTimeString() });
-                        setCurrentStatus('プレジデントの指示により、プロジェクトを継続します。');
+                        setCurrentStatus(t.status.presidentReinstructing);
                 } else {
                     setFinalReport(reviewText); 
                     setSystemStatus('completed');
                     playCompletionSound();
-                    showToast('プロジェクトが完了しました！');
+                    showToast(t.status.completed);
                 }
                 
             } else if (fnName === 'ask_human') {
@@ -457,13 +486,13 @@ export const useAgis = () => {
                 
                 if (fnName === 'invoke') {
                     targetAlias = args.agent_alias;
-                    query = `【タスク指示】\n${args.query}`;
+                    query = t.prompts.taskInstruction.replace('{query}', args.query);
                 } else if (fnName === 'consult') {
                     targetAlias = args.to_alias;
-                    query = `【相談 from ${args.from_alias}】\n${args.query}`;
+                    query = t.prompts.consultation.replace('{from}', args.from_alias).replace('{query}', args.query);
                 } else if (fnName === 'review') {
                     targetAlias = args.reviewer_alias;
-                    query = `【レビュー依頼 (対象: ${args.target_alias}の報告書)】\n${args.query}`;
+                    query = t.prompts.reviewRequest.replace('{target}', args.target_alias).replace('{query}', args.query);
                 }
                 
                 const targetAgent = AGENTS.find(a => a.alias === targetAlias);
@@ -478,7 +507,7 @@ export const useAgis = () => {
                     invocations.forEach((inv: any) => {
                         const targetAgent = AGENTS.find(a => a.alias === inv.agent_alias);
                          if (targetAgent) {
-                             agentTasks.push({ agent: targetAgent, query: `【タスク指示】\n${inv.query}` });
+                             agentTasks.push({ agent: targetAgent, query: t.prompts.taskInstruction.replace('{query}', inv.query) });
                          }
                     });
             } else if (fnName === 'add_member') {
@@ -486,7 +515,10 @@ export const useAgis = () => {
                 if (targetAgent) {
                     setSelectedAgents(prev => new Set(prev).add(targetAgent.id));
                     appendToHistory(`[System] ${targetAgent.name} (${args.agent_alias}) added to team. Reason: ${args.reason}`);
-                    showToast(`${targetAgent.name} がチームに参加しました`, 'info');
+                    const message = language === 'en' 
+                        ? `${targetAgent.name} has joined the team.`
+                        : `${targetAgent.name} がチームに参加しました`;
+                    showToast(message, 'info');
                     memberAdded = true;
                 }
             }
@@ -494,18 +526,24 @@ export const useAgis = () => {
 
         // Execute Agent Tasks in Parallel
         if (agentTasks.length > 0 && !isMissionComplete && !isWaitingForUser) {
-            const agentNames = agentTasks.map(t => t.agent.name).join(', ');
-            setCurrentStatus(`${agentNames} が作業中...`);
+            // Translate agent names for status display if needed, though alias matching usually works
+            const agentNames = agentTasks.map(task => {
+                // Attempt to get translated name
+                const transAgent = (t.agents as any)?.[task.agent.id]; // Type safety hack or direct access if possible
+                return transAgent ? transAgent.name : task.agent.name; 
+            }).join(', ');
+            
+            setCurrentStatus(t.status.agentsWorking.replace('{names}', agentNames));
 
             // Show tasks in agent UI
-            agentTasks.forEach(t => {
-                 addMessage(t.agent.id, { sender: 'user', content: t.query, timestamp: new Date().toLocaleTimeString() });
+            agentTasks.forEach(task => {
+                 addMessage(task.agent.id, { sender: 'user', content: task.query, timestamp: new Date().toLocaleTimeString() });
             });
 
             // Set thinking state
             setThinkingAgents(prev => {
                 const next = new Set(prev);
-                agentTasks.forEach(t => next.add(t.agent.id));
+                agentTasks.forEach(task => next.add(task.agent.id));
                 return next;
             });
 
@@ -513,7 +551,7 @@ export const useAgis = () => {
                 try {
                     // CodeExecution is automatically enabled in geminiService
                     const agentResponse = await generateResponseStream(
-                        task.agent.systemPrompt,
+                        getSystemInstruction(task.agent.systemPrompt),
                         task.query,
                         (chunk) => updateAgentLastMessage(task.agent.id, chunk),
                         conversationHistoryRef.current, // Snapshot
@@ -522,12 +560,14 @@ export const useAgis = () => {
                         true, // Use Search if needed (controlled by prop internally but enabled here)
                         undefined,
                         undefined,
-                        activeThinkingConfig // Use active config
+                        activeThinkingConfig, // Use active config
+                        language // Pass language
                     );
                     return { agent: task.agent, text: agentResponse.text };
                 } catch (e) {
                      console.error(`Error executing agent ${task.agent.alias}`, e);
-                     return { agent: task.agent, text: "エラーが発生しました。" };
+                     const errorMsg = language === 'en' ? "An error occurred." : "エラーが発生しました。";
+                     return { agent: task.agent, text: errorMsg };
                 } finally {
                     // Stop thinking individually
                     setThinkingAgents(prev => {
@@ -553,32 +593,32 @@ export const useAgis = () => {
             // Add a system message to Orchestrator to indicate progress
             addMessage('orchestrator', { 
                 sender: 'system', 
-                content: "各専門家エージェントからの報告を受領しました。情報を統合し、次のステップを検討します。", 
+                content: t.status.agentsReported, 
                 timestamp: new Date().toLocaleTimeString() 
             });
 
-            currentPrompt = `エージェントからの報告を受け取りました。\n\n${combinedResults}\n\nこれらを評価し、次の行動を決定してください。`;
+            currentPrompt = t.prompts.agentsReportedPrompt.replace('{combinedResults}', combinedResults);
 
         } else if (memberAdded && !isMissionComplete && !isWaitingForUser) {
             addMessage('orchestrator', { 
                 sender: 'system', 
-                content: "メンバーの追加が完了しました。次のタスクを実行してください。", 
+                content: t.status.memberAdded, 
                 timestamp: new Date().toLocaleTimeString() 
             });
-            currentPrompt = "メンバーを追加しました。現在のチーム構成と状況を踏まえ、次の行動（タスク指示など）を決定してください。";
+            currentPrompt = t.prompts.memberAddedPrompt;
 
         } else if (functionCalls.length === 0 && !isMissionComplete && !isWaitingForUser) {
              if (responseText.includes('AGIS_CMD::complete')) {
-                 currentPrompt = "タスクが完了した場合は 'complete' ツールを使用してください。まだの場合は次の行動を指示してください。";
+                 currentPrompt = t.prompts.checkCompletePrompt;
              } else {
-                 currentPrompt = "状況を評価し、次の行動（ツール呼び出し）を決定してください。";
+                 currentPrompt = t.prompts.evaluateSituationPrompt;
              }
         }
     }
 
     // Loop Limit Check
     if (!missionComplete && !isWaitingForHuman && !isLoading && !processingRef.current) {
-        setHumanQuestion("自律思考ループの安全上限（30回）に到達しました。\n\n現在のタスクはまだ完了していません。処理を継続しますか？\n継続する場合は「はい」と入力、または具体的な指示を入力して送信してください。");
+        setHumanQuestion(t.status.loopLimit);
         setIsWaitingForHuman(true);
         setSystemStatus('waiting');
         playNotificationSound();
@@ -608,12 +648,12 @@ export const useAgis = () => {
         appendToHistory(`--- User Request ---\n${prompt}`);
 
         // 2. President Phase 1: Team selection & Initial Instruction
-        setCurrentStatus('プレジデントがチームを編成中...');
+        setCurrentStatus(t.status.presidentThinking);
         setAgentThinking('president', true);
         
         const presResponse = await generateResponseStream(
-            president.systemPrompt,
-            `ユーザーからの要求: ${prompt}`,
+            getSystemInstruction(president.systemPrompt),
+            `${t.prompts.userRequestPrefix}${prompt}`,
             (chunk) => updateAgentLastMessage('president', chunk),
             conversationHistoryRef.current,
             sharedKnowledgeBaseRef.current,
@@ -621,7 +661,8 @@ export const useAgis = () => {
             true, 
             files, // Pass all files (text, pdf, etc.)
             undefined,
-            activeThinkingConfig // Use active config
+            activeThinkingConfig, // Use active config
+            language // Pass language
         );
         
         setAgentThinking('president', false);
@@ -639,7 +680,7 @@ export const useAgis = () => {
             setSelectedAgents(newSelectedAgents);
         }
 
-        const nextPrompt = `プレジデントからの指示を受け取りました。これよりプロジェクトを開始します。\n\nプレジデントの指示:\n${presText}`;
+        const nextPrompt = t.prompts.presidentInstructionReceived + presText;
         
         // Show initial instruction to Orchestrator
         addMessage('orchestrator', { sender: 'user', content: nextPrompt, timestamp: new Date().toLocaleTimeString() });
@@ -649,9 +690,12 @@ export const useAgis = () => {
       } catch (error: any) {
           console.error(error);
           addErrorLog(error.message || 'Unknown error occurred');
-          showToast('エラーが発生しました。エラーログを確認してください。', 'error');
+          const errorMsg = language === 'en' 
+             ? 'An error occurred. Please check the error log.'
+             : 'エラーが発生しました。エラーログを確認してください。';
+          showToast(errorMsg, 'error');
           setSystemStatus('error');
-          setCurrentStatus('エラーが発生しました');
+          setCurrentStatus(t.status.error);
       } finally {
           processingRef.current = false;
           setIsLoading(false);
@@ -670,16 +714,19 @@ export const useAgis = () => {
       setIsLoading(true);
 
       try {
-          const nextPrompt = `ユーザーからの回答: ${answer}\n\nこれを受けて、プロジェクトを再開・継続してください。`;
+          const nextPrompt = t.prompts.userAnswerReceived.replace('{answer}', answer);
           // Show user answer to Orchestrator
           addMessage('orchestrator', { sender: 'user', content: nextPrompt, timestamp: new Date().toLocaleTimeString() });
           await runOrchestratorLoop(nextPrompt);
       } catch (error: any) {
           console.error(error);
           addErrorLog(error.message || 'Unknown error occurred');
-          showToast('エラーが発生しました。エラーログを確認してください。', 'error');
+          const errorMsg = language === 'en' 
+             ? 'An error occurred. Please check the error log.'
+             : 'エラーが発生しました。エラーログを確認してください。';
+          showToast(errorMsg, 'error');
           setSystemStatus('error');
-          setCurrentStatus('エラーが発生しました');
+          setCurrentStatus(t.status.error);
       } finally {
           processingRef.current = false;
           setIsLoading(false);

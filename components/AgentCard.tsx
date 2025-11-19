@@ -2,6 +2,8 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Agent, Message } from '../types';
 import { AGENT_COLORS, TEAM_COLORS } from '../constants';
+import { generateHtmlReport, generateWordDoc } from '../utils/reportGenerator';
+import { useLanguage } from '../contexts/LanguageContext';
 
 // Declare Mermaid global
 declare const mermaid: any;
@@ -20,6 +22,8 @@ interface AgentCardProps {
 
 const CodeBlock: React.FC<{ code: string, language?: string }> = ({ code, language = 'text' }) => {
     const [copied, setCopied] = useState(false);
+    const { t } = useLanguage();
+    
     const handleCopy = () => {
         navigator.clipboard.writeText(code).then(() => {
             setCopied(true);
@@ -43,7 +47,7 @@ const CodeBlock: React.FC<{ code: string, language?: string }> = ({ code, langua
                 className="absolute top-2 right-12 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-1 px-2 rounded-md transition-all opacity-0 group-hover:opacity-100"
                 title="Copy code"
             >
-                {copied ? 'Copied!' : 'Copy'}
+                {copied ? t.agentCard.copied : t.agentCard.copy}
             </button>
         </div>
     );
@@ -54,6 +58,7 @@ const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
     const [error, setError] = useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const id = useRef(`mermaid-${Math.random().toString(36).substr(2, 9)}`).current;
+    const { t } = useLanguage();
 
     useEffect(() => {
         const renderChart = async () => {
@@ -70,17 +75,17 @@ const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
                          setError(null);
                     }
                 } else {
-                    setError("Mermaid library not loaded");
+                    setError(t.errors.mermaidLib);
                 }
             } catch (err: any) {
                 console.error("Mermaid render error:", err);
-                setError("図の描画に失敗しました: " + err.message);
+                setError(t.errors.mermaidRender + err.message);
             }
         };
         // Simple debounce/delay to ensure DOM readiness
         const timer = setTimeout(renderChart, 100);
         return () => clearTimeout(timer);
-    }, [code, id]);
+    }, [code, id, t]);
 
     if (error) return (
         <div className="bg-red-900/30 border border-red-700 text-red-300 p-2 text-xs rounded my-2">
@@ -101,7 +106,13 @@ const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [highlight, setHighlight] = useState(false);
   const prevMessagesLength = useRef(messages.length);
+  const { t } = useLanguage();
   
+  // Get translated names
+  // Use type assertion to allow string indexing if types are strict
+  const transAgent = (t.agents as any)[agent.id] || { name: agent.name, role: agent.role };
+  const transTeam = (t.teams as any)[agent.team] || agent.team;
+
   // Smart Scroll Logic
   const isUserScrolling = useRef(false);
 
@@ -141,17 +152,63 @@ const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, 
       }
   }, [isThinking, isCompact]);
 
-  const handleDownload = () => {
+  // --- Download Logic ---
+  const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
+  const downloadMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+        if (downloadMenuRef.current && !downloadMenuRef.current.contains(event.target as Node)) {
+            setIsDownloadMenuOpen(false);
+        }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleDownloadMarkdown = () => {
     if (!finalReportContent) return;
     const blob = new Blob([finalReportContent], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `AGIS-Report-${new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-')}.md`;
+    a.download = `AGIS-Report-${new Date().toISOString().slice(0, 10)}.md`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    setIsDownloadMenuOpen(false);
+  };
+
+  const handleDownloadHtml = () => {
+      if (!finalReportContent) return;
+      const htmlContent = generateHtmlReport(finalReportContent);
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `AGIS-WebReport-${new Date().toISOString().slice(0, 10)}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setIsDownloadMenuOpen(false);
+  };
+
+  const handleDownloadWord = () => {
+      if (!finalReportContent) return;
+      const wordContent = generateWordDoc(finalReportContent);
+      // Using application/msword to trigger Word opening
+      const blob = new Blob([wordContent], { type: 'application/msword;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `AGIS-Report-${new Date().toISOString().slice(0, 10)}.doc`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setIsDownloadMenuOpen(false);
   };
 
   const TypingIndicator = () => (
@@ -238,31 +295,62 @@ const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, 
                </div>
            )}
            <div className="overflow-hidden w-full">
-              {(!isCompact || isExpanded) && <p className={`text-xs ${teamColor.text} font-bold opacity-80 truncate`}>{agent.team}</p>}
-              <h3 className="font-bold text-sm text-white break-words leading-tight mb-0.5">{agent.name}</h3>
-              <p className={`text-[10px] ${teamColor.text} opacity-90 truncate`}>{agent.role}</p>
+              {(!isCompact || isExpanded) && <p className={`text-xs ${teamColor.text} font-bold opacity-80 truncate`}>{transTeam}</p>}
+              <h3 className="font-bold text-sm text-white break-words leading-tight mb-0.5">{transAgent.name}</h3>
+              <p className={`text-[10px] ${teamColor.text} opacity-90 truncate`}>{transAgent.role}</p>
            </div>
         </div>
         <div className="flex items-center space-x-1 flex-shrink-0 ml-1">
             {isThinking && (
-                <span className="text-[10px] font-bold text-cyan-400 bg-cyan-900/80 px-1.5 py-0.5 rounded border border-cyan-700 animate-pulse">Thinking</span>
+                <span className="text-[10px] font-bold text-cyan-400 bg-cyan-900/80 px-1.5 py-0.5 rounded border border-cyan-700 animate-pulse">{t.agentCard.thinking}</span>
             )}
+            
+            {/* Download Button with Dropdown */}
             {finalReportContent && (!isCompact || isExpanded) && (
-              <button
-                onClick={handleDownload}
-                className="bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors"
-                title="最終レポートをダウンロード"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
+                <div className="relative" ref={downloadMenuRef}>
+                  <button
+                    onClick={() => setIsDownloadMenuOpen(!isDownloadMenuOpen)}
+                    className={`bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors flex items-center ${isDownloadMenuOpen ? 'bg-cyan-700 ring-2 ring-cyan-400' : ''}`}
+                    title={t.agentCard.download}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                    <span className="hidden sm:inline whitespace-nowrap">{t.agentCard.download}</span>
+                  </button>
+                  {isDownloadMenuOpen && (
+                      <div className="absolute right-0 mt-2 w-64 bg-gray-800 border border-gray-600 rounded-md shadow-xl z-50 overflow-hidden">
+                          <button 
+                             onClick={handleDownloadMarkdown}
+                             className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center whitespace-nowrap"
+                          >
+                              <span className="bg-gray-700 text-[10px] p-1 rounded mr-3 font-mono w-10 text-center">.md</span>
+                              {t.agentCard.saveMd}
+                          </button>
+                          <button 
+                             onClick={handleDownloadHtml}
+                             className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center border-t border-gray-700 whitespace-nowrap"
+                          >
+                              <span className="bg-cyan-900 text-cyan-300 text-[10px] p-1 rounded mr-3 font-mono w-10 text-center">.html</span>
+                              {t.agentCard.saveHtml}
+                          </button>
+                          <button 
+                             onClick={handleDownloadWord}
+                             className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center border-t border-gray-700 whitespace-nowrap"
+                          >
+                              <span className="bg-blue-900 text-blue-200 text-[10px] p-1 rounded mr-3 font-mono w-10 text-center">.doc</span>
+                              {t.agentCard.saveWord}
+                          </button>
+                      </div>
+                  )}
+                </div>
             )}
+            
             {isExpanded && onClose && (
                  <button
                     onClick={onClose}
                     className="text-gray-300 hover:text-white transition-colors p-1"
-                    title="閉じる"
+                    title={t.agentCard.close}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -273,7 +361,7 @@ const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, 
                 <button
                     onClick={onExpand}
                     className="text-gray-400 hover:text-white transition-colors p-1"
-                    title="拡大"
+                    title={t.agentCard.expand}
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />

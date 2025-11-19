@@ -1,5 +1,6 @@
 
 import { GoogleGenAI, FunctionDeclaration, Tool, FunctionCall, GenerateContentResponse, Part } from "@google/genai";
+import { translations } from "../locales/translations";
 
 const API_KEY = process.env.API_KEY;
 
@@ -80,24 +81,25 @@ const retryOperation = async <T>(operation: () => Promise<T>, maxRetries: number
   throw classifyError(lastError);
 };
 
-const buildContents = (prompt: string, context?: string, knowledgeBase?: string, files?: UploadedFile[]) => {
+const buildContents = (prompt: string, context?: string, knowledgeBase?: string, files?: UploadedFile[], language: 'ja' | 'en' = 'ja') => {
   let fullPrompt = '';
+  const t = translations[language].context;
 
   if (knowledgeBase) {
-    fullPrompt += `以下は、このプロジェクトでこれまでに蓄積された、最も重要な知見（キーインサイト）をまとめた共有知識ベースです。必ず最初にこれを読み、最優先の前提情報としてください。\n\n--- 共有知識ベース (Key Insights) ---\n${knowledgeBase}\n\n---\n\n`;
+    fullPrompt += `${t.knowledgeBaseHeader}\n${knowledgeBase}\n\n---\n\n`;
   }
   
   if (context) {
-    fullPrompt += `次に、あなたへの今回のタスク指示の前に共有された、プロジェクト全体のコンテキストログ（全対話履歴）です。知識ベースと合わせて、これを完全に理解した上で、タスクを実行してください。\n\n--- プロジェクト共有コンテキスト ---\n${context}\n\n`;
+    fullPrompt += `\n${t.contextLogHeader}\n${context}\n\n`;
   }
   
   // Handle Text Files as Context
   if (files && files.length > 0) {
       const textFiles = files.filter(f => f.isText);
       if (textFiles.length > 0) {
-          fullPrompt += `\n--- 添付資料 (RAG Context) ---\n`;
+          fullPrompt += `\n${t.ragHeader}\n`;
           textFiles.forEach(f => {
-              fullPrompt += `\n【ファイル名: ${f.name}】\n${f.data}\n`;
+              fullPrompt += `\n${t.fileName.replace('{name}', f.name)}\n${f.data}\n`;
           });
           fullPrompt += `\n----------------------------\n`;
       }
@@ -145,10 +147,11 @@ export const generateResponseStream = async (
   useSearch: boolean = false,
   files?: UploadedFile[],
   tools?: FunctionDeclaration[],
-  thinkingConfig?: { thinkingBudget?: number, includeThoughts?: boolean }
+  thinkingConfig?: { thinkingBudget?: number, includeThoughts?: boolean },
+  language: 'ja' | 'en' = 'ja'
 ): Promise<StreamResponseResult> => {
   try {
-    const contents = buildContents(prompt, context, knowledgeBase, files);
+    const contents = buildContents(prompt, context, knowledgeBase, files, language);
     
     const configTools: Tool[] = [];
     

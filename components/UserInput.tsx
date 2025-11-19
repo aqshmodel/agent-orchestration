@@ -1,5 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface UserInputProps {
   onSubmit: (prompt: string, files: FileData[]) => void;
@@ -25,6 +26,7 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -122,7 +124,7 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd" />
                         </svg>
-                        <span className="text-[10px]">AUDIO</span>
+                        <span className="text-[10px]">{t.input.audio}</span>
                      </div>
                   ) : (
                      <div className="mr-2 text-cyan-400">
@@ -138,7 +140,7 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
                      </div>
                   )}
                   <span className="text-xs text-gray-300 max-w-[100px] truncate" title={file.name}>{file.name}</span>
-                  <span className="ml-1 text-[9px] text-gray-500 border border-gray-600 rounded px-1">{file.isText ? 'TEXT' : file.type.split('/')[1].toUpperCase()}</span>
+                  <span className="ml-1 text-[9px] text-gray-500 border border-gray-600 rounded px-1">{file.isText ? t.input.text : file.type.split('/')[1].toUpperCase()}</span>
                   <button
                     type="button"
                     onClick={() => handleRemoveFile(index)}
@@ -158,7 +160,7 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
               onClick={() => fileInputRef.current?.click()}
               disabled={isLoading}
               className="text-gray-400 hover:text-cyan-400 transition-colors p-2 relative"
-              title="資料を添付 (画像, 音声, PDF, テキスト)"
+              title={t.input.attach}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -178,7 +180,7 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
               onChange={(e) => setPrompt(e.target.value)}
               onCompositionStart={() => setIsComposing(true)}
               onCompositionEnd={() => setIsComposing(false)}
-              placeholder="プレジデントへの指示を入力（会議音声やホワイトボード写真も添付可）..."
+              placeholder={t.input.placeholder}
               className="flex-grow bg-gray-800 border border-gray-600 rounded-lg p-3 text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-500 focus:outline-none resize-none"
               rows={1}
               style={{ maxHeight: '150px' }}
@@ -212,7 +214,7 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
                 onClick={() => setIsMenuOpen(prev => !prev)}
                 disabled={isLoading}
                 className="bg-gray-600 hover:bg-gray-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white rounded-lg p-3 h-full flex items-center justify-center transition-colors"
-                title="セッション管理"
+                title={t.input.sessionMenu}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -224,20 +226,20 @@ const UserInput: React.FC<UserInputProps> = ({ onSubmit, onResetAll, onClearConv
                   <ul className="text-sm text-gray-200">
                     <li>
                       <button onClick={() => { onClearConversationHistory(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-gray-700 rounded-t-md">
-                        <strong className="block">対話履歴のみクリア</strong>
-                        <span className="text-xs text-gray-400">知識ベースは維持し、対話コンテキストをリセットします。</span>
+                        <strong className="block">{t.input.clearHistory}</strong>
+                        <span className="text-xs text-gray-400">{t.input.clearHistoryDesc}</span>
                       </button>
                     </li>
                     <li>
                       <button onClick={() => { onClearKnowledgeBase(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-gray-700">
-                        <strong className="block">知識ベースのみクリア</strong>
-                        <span className="text-xs text-gray-400">対話履歴は維持し、蓄積されたキーインサイトをリセットします。</span>
+                        <strong className="block">{t.input.clearBrain}</strong>
+                        <span className="text-xs text-gray-400">{t.input.clearBrainDesc}</span>
                       </button>
                     </li>
                     <li className="border-t border-gray-700">
                       <button onClick={() => { onResetAll(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 text-red-400 hover:bg-red-800/50 rounded-b-md">
-                        <strong className="block">全ての記憶をクリア (新規セッション)</strong>
-                        <span className="text-xs text-gray-400">全てをリセットし、最初の状態から開始します。</span>
+                        <strong className="block">{t.input.resetAll}</strong>
+                        <span className="text-xs text-gray-400">{t.input.resetAllDesc}</span>
                       </button>
                     </li>
                   </ul>

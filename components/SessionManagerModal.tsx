@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export interface SessionMetadata {
   id: string;
@@ -23,6 +24,7 @@ const SessionManagerModal: React.FC<SessionManagerModalProps> = ({
   const [sessions, setSessions] = useState<SessionMetadata[]>([]);
   const [newSessionName, setNewSessionName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const { t } = useLanguage();
 
   useEffect(() => {
     loadSessions();
@@ -53,7 +55,7 @@ const SessionManagerModal: React.FC<SessionManagerModalProps> = ({
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('本当にこのセッションを削除しますか？')) {
+    if (window.confirm(t.modal.sessionDeleteConfirm)) {
       onDelete(id);
       loadSessions();
     }
@@ -68,7 +70,7 @@ const SessionManagerModal: React.FC<SessionManagerModalProps> = ({
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
             </svg>
-            プロジェクト・セッション管理
+            {t.modal.sessionTitle}
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -81,13 +83,13 @@ const SessionManagerModal: React.FC<SessionManagerModalProps> = ({
             {/* Left Column: Save Current / New */}
             <div className="flex flex-col space-y-6 border-r border-gray-800 pr-6">
                 <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
-                    <h3 className="text-sm font-bold text-gray-300 mb-3">現在の状態を保存</h3>
+                    <h3 className="text-sm font-bold text-gray-300 mb-3">{t.modal.sessionSaveTitle}</h3>
                     <form onSubmit={handleSave}>
                         <input 
                             type="text" 
                             value={newSessionName}
                             onChange={(e) => setNewSessionName(e.target.value)}
-                            placeholder="プロジェクト名を入力..."
+                            placeholder={t.modal.sessionPlaceholder}
                             className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm mb-3 focus:border-cyan-500 focus:outline-none"
                         />
                         <button 
@@ -98,30 +100,30 @@ const SessionManagerModal: React.FC<SessionManagerModalProps> = ({
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                             </svg>
-                            保存する
+                            {t.modal.sessionSaveBtn}
                         </button>
                     </form>
                 </div>
 
                 <div className="mt-auto">
                     <button 
-                        onClick={() => { if(window.confirm('現在の作業内容は保存されていますか？\n保存されていない内容は失われます。新規セッションを開始しますか？')) { onNew(); onClose(); } }}
+                        onClick={() => { if(window.confirm(t.modal.sessionNewConfirm)) { onNew(); onClose(); } }}
                         className="w-full border border-dashed border-gray-500 hover:border-cyan-400 hover:text-cyan-400 text-gray-400 py-4 rounded-lg transition-all flex flex-col items-center justify-center"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
-                        新規セッションを開始
+                        {t.modal.sessionNewBtn}
                     </button>
                 </div>
             </div>
 
             {/* Right Column: List */}
             <div className="flex flex-col min-h-0">
-                <h3 className="text-sm font-bold text-gray-300 mb-3">保存済みセッション</h3>
+                <h3 className="text-sm font-bold text-gray-300 mb-3">{t.modal.sessionListTitle}</h3>
                 <div className="flex-grow overflow-y-auto space-y-3 pr-2">
                     {sessions.length === 0 ? (
-                        <p className="text-gray-500 text-sm text-center py-10">保存されたセッションはありません</p>
+                        <p className="text-gray-500 text-sm text-center py-10">{t.modal.sessionEmpty}</p>
                     ) : (
                         sessions.map(session => (
                             <div 
