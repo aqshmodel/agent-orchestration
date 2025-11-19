@@ -1,6 +1,5 @@
-
 import { useLanguage } from '../contexts/LanguageContext';
-import { SessionMetadata } from '../components/SessionManagerModal';
+import { SessionMetadata } from '../components/modals/SessionManagerModal';
 
 export const useSession = () => {
     const { t } = useLanguage();

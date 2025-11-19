@@ -1,11 +1,10 @@
-
 import React from 'react';
 import { AGENTS } from './constants';
-import AgentCard from './components/AgentCard';
-import UserInput from './components/UserInput';
-import Header from './components/Header';
-import AgentGrid from './components/AgentGrid';
-import ModalManager from './components/ModalManager';
+import AgentCard from './components/agents/AgentCard';
+import UserInput from './components/layout/UserInput';
+import Header from './components/layout/Header';
+import AgentGrid from './components/agents/AgentGrid';
+import ModalManager from './components/modals/ModalManager';
 import { useAgis } from './hooks/useAgis';
 
 const App: React.FC = () => {
