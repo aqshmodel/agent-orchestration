@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useAgisState } from '../hooks/useAgisState';
 import { useSession } from '../hooks/useSession';
@@ -23,6 +24,7 @@ type AgisContextType = ReturnType<typeof useAgisState> & {
     handleDeleteSession: (id: string) => void;
     handleNewSession: () => void;
     clearErrorLogs: () => void;
+    handleOpenPreview: (code: string, language: string) => void;
 };
 
 const AgisContext = createContext<AgisContextType | undefined>(undefined);
@@ -51,6 +53,11 @@ export const AgisProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const handleClearKnowledgeBase = () => {
         state.sharedKnowledgeBaseRef.current = '';
         state.showToast(t.status.brainCleared, 'info');
+    };
+    
+    const handleOpenPreview = (code: string, language: string) => {
+        state.setPreviewCode({ code, language });
+        state.setIsPreviewModalOpen(true);
     };
 
     const handleSaveSession = (name: string) => {
@@ -232,6 +239,7 @@ export const AgisProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         handleDeleteSession,
         handleNewSession: handleResetAll,
         clearErrorLogs: state.clearErrorLogs,
+        handleOpenPreview,
     };
 
     return (

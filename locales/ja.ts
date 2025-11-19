@@ -1,4 +1,5 @@
 
+
 import { Team, TranslationResource } from '../types';
 
 export const ja: TranslationResource = {
@@ -27,6 +28,7 @@ export const ja: TranslationResource = {
     expand: '拡大',
     copy: 'Copy',
     copied: 'Copied!',
+    preview: 'Run / Preview',
     generatingImage: '画像を生成中',
     downloadImage: '画像をダウンロード',
   },
@@ -34,6 +36,8 @@ export const ja: TranslationResource = {
     placeholder: 'プレジデントへの指示を入力（会議音声やホワイトボード写真も添付可）...',
     send: '送信',
     attach: '資料を添付',
+    mic: '音声入力',
+    listening: '聞き取り中...',
     sessionMenu: 'セッション管理',
     clearHistory: '対話履歴のみクリア',
     clearHistoryDesc: '知識ベースは維持し、対話コンテキストをリセットします。',
@@ -100,6 +104,7 @@ export const ja: TranslationResource = {
     errorTitle: 'エラーログ',
     errorEmpty: 'エラーログはありません。',
     errorClear: 'ログをクリア',
+    previewTitle: 'Artifact Workbench (Preview)',
   },
   teams: {
     [Team.LEADERSHIP]: "リーダーシップ",

@@ -1,8 +1,9 @@
 
+
 import React, { useRef, useEffect, useState } from 'react';
 import { Agent, Message, Artifact } from '../types';
 import { AGENT_COLORS, TEAM_COLORS } from '../constants';
-import { generateHtmlReport, generateWordDoc } from '../utils/reportGenerator';
+import { generateWordDoc } from '../utils/reportGenerator';
 import { useLanguage } from '../contexts/LanguageContext';
 import MarkdownRenderer from './MarkdownRenderer';
 
@@ -117,21 +118,6 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
     setIsDownloadMenuOpen(false);
   };
 
-  const handleDownloadHtml = () => {
-      if (!finalReportContent) return;
-      const htmlContent = generateHtmlReport(finalReportContent, 'A.G.I.S. Strategic Report', language, artifacts);
-      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `AGIS-WebReport-${new Date().toISOString().slice(0, 10)}.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      setIsDownloadMenuOpen(false);
-  };
-
   const handleDownloadWord = () => {
       if (!finalReportContent) return;
       const wordContent = generateWordDoc(finalReportContent, 'A.G.I.S. Report', language);
@@ -211,13 +197,6 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
                           >
                               <span className="bg-gray-700 text-[10px] p-1 rounded mr-3 font-mono w-10 text-center">.md</span>
                               {t.agentCard.saveMd}
-                          </button>
-                          <button 
-                             onClick={handleDownloadHtml}
-                             className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center border-t border-gray-700 whitespace-nowrap"
-                          >
-                              <span className="bg-cyan-900 text-cyan-300 text-[10px] p-1 rounded mr-3 font-mono w-10 text-center">.html</span>
-                              {t.agentCard.saveHtml}
                           </button>
                           <button 
                              onClick={handleDownloadWord}

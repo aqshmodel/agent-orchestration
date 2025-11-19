@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAgis } from '../hooks/useAgis';
@@ -9,6 +10,14 @@ export interface FileData {
   isText: boolean;
 }
 
+// Web Speech API Type Definitions
+declare global {
+  interface Window {
+    webkitSpeechRecognition: any;
+    SpeechRecognition: any;
+  }
+}
+
 const UserInput: React.FC = () => {
   const {
       handleSendMessage: onSubmit,
@@ -17,17 +26,20 @@ const UserInput: React.FC = () => {
       handleClearKnowledgeBase: onClearKnowledgeBase,
       isLoading,
       isWaitingForHuman,
-      currentStatus
+      currentStatus,
+      showToast // Add showToast from context
   } = useAgis();
   
   const [prompt, setPrompt] = useState('');
   const [isComposing, setIsComposing] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<FileData[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   const isInputLoading = isLoading || isWaitingForHuman;
 
@@ -49,6 +61,77 @@ const UserInput: React.FC = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [menuRef]);
+
+  // Speech Recognition Setup
+  useEffect(() => {
+      if (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)) {
+          const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+          recognitionRef.current = new SpeechRecognition();
+          recognitionRef.current.continuous = false; // Stop after one sentence/utterance
+          recognitionRef.current.interimResults = true;
+          recognitionRef.current.lang = language === 'en' ? 'en-US' : 'ja-JP';
+
+          recognitionRef.current.onresult = (event: any) => {
+              let interimTranscript = '';
+              let finalTranscript = '';
+
+              for (let i = event.resultIndex; i < event.results.length; ++i) {
+                  if (event.results[i].isFinal) {
+                      finalTranscript += event.results[i][0].transcript;
+                  } else {
+                      interimTranscript += event.results[i][0].transcript;
+                  }
+              }
+              
+              if (finalTranscript) {
+                  setPrompt(prev => prev + (prev ? ' ' : '') + finalTranscript);
+                  setIsListening(false);
+              }
+          };
+
+          recognitionRef.current.onerror = (event: any) => {
+              console.error('Speech recognition error', event.error);
+              setIsListening(false);
+              
+              if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                  showToast(
+                      language === 'en' 
+                          ? "Microphone access denied. Please check your browser settings." 
+                          : "マイクのアクセスが拒否されました。ブラウザの設定を確認してください。", 
+                      "error"
+                  );
+              } else if (event.error === 'no-speech') {
+                   // No speech detected, just stop silently or with a mild info
+                   // showToast(language === 'en' ? "No speech detected." : "音声が検出されませんでした。", "info");
+              } else {
+                   showToast(
+                      language === 'en' 
+                          ? `Speech recognition error: ${event.error}` 
+                          : `音声認識エラー: ${event.error}`, 
+                      "error"
+                  );
+              }
+          };
+          
+          recognitionRef.current.onend = () => {
+              setIsListening(false);
+          };
+      }
+  }, [language, showToast]);
+
+  const toggleListening = () => {
+      if (isListening) {
+          recognitionRef.current?.stop();
+      } else {
+          try {
+            recognitionRef.current?.start();
+            setIsListening(true);
+          } catch (e) {
+            console.error("Failed to start recognition", e);
+            setIsListening(false);
+          }
+      }
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -170,14 +253,28 @@ const UserInput: React.FC = () => {
               accept="image/*,audio/*,.pdf,.txt,.md,.csv,.json,.js,.ts,.py"
               className="hidden"
             />
+            
+            {/* Mic Button */}
+            <button
+                type="button"
+                onClick={toggleListening}
+                disabled={isInputLoading || !recognitionRef.current}
+                className={`p-3 rounded-xl flex-shrink-0 transition-colors ${isListening ? 'text-red-500 animate-pulse bg-red-900/20' : 'text-gray-400 hover:text-cyan-400 hover:bg-gray-800/50'}`}
+                title={isListening ? t.input.listening : t.input.mic}
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+            </button>
+
             <textarea
               ref={textareaRef}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               onCompositionStart={() => setIsComposing(true)}
               onCompositionEnd={() => setIsComposing(false)}
-              placeholder={t.input.placeholder}
-              className="flex-grow bg-transparent border-none text-gray-100 placeholder-gray-400 focus:ring-0 resize-none py-3 pl-4 max-h-[200px] custom-scrollbar leading-relaxed caret-cyan-400"
+              placeholder={isListening ? t.input.listening : t.input.placeholder}
+              className="flex-grow bg-transparent border-none text-gray-100 placeholder-gray-400 focus:ring-0 resize-none py-3 pl-2 max-h-[200px] custom-scrollbar leading-relaxed caret-cyan-400"
               rows={1}
               disabled={isInputLoading}
               onKeyDown={(e) => {

@@ -1,4 +1,5 @@
 
+
 import { useState, useRef, useEffect } from 'react';
 import { Message, GraphEvent, Artifact } from '../types';
 import { generateImage } from '../services/geminiService';
@@ -23,6 +24,7 @@ export const useAgisState = () => {
   const [isKnowledgeBaseOpen, setIsKnowledgeBaseOpen] = useState(false);
   const [isSessionManagerOpen, setIsSessionManagerOpen] = useState(false);
   const [isGraphModalOpen, setIsGraphModalOpen] = useState(false);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [expandedAgentId, setExpandedAgentId] = useState<string | null>(null);
   
   const [selectedAgents, setSelectedAgents] = useState<Set<string>>(new Set());
@@ -31,6 +33,7 @@ export const useAgisState = () => {
   const [selectedModel, setSelectedModel] = useState('gemini-3-pro-preview-high');
   const [graphEvents, setGraphEvents] = useState<GraphEvent[]>([]);
   const [artifacts, setArtifacts] = useState<Record<string, Artifact>>({});
+  const [previewCode, setPreviewCode] = useState<{code: string, language: string} | null>(null);
 
   // Refs
   const conversationHistoryRef = useRef('');
@@ -169,6 +172,7 @@ export const useAgisState = () => {
     setCurrentSessionId(null);
     setGraphEvents([]);
     setArtifacts({});
+    setPreviewCode(null);
     processedImageTagsRef.current = new Set();
     conversationHistoryRef.current = '';
     sharedKnowledgeBaseRef.current = '';
@@ -190,6 +194,7 @@ export const useAgisState = () => {
     isKnowledgeBaseOpen, setIsKnowledgeBaseOpen,
     isSessionManagerOpen, setIsSessionManagerOpen,
     isGraphModalOpen, setIsGraphModalOpen,
+    isPreviewModalOpen, setIsPreviewModalOpen,
     expandedAgentId, setExpandedAgentId,
     selectedAgents, setSelectedAgents,
     systemStatus, setSystemStatus,
@@ -197,6 +202,7 @@ export const useAgisState = () => {
     selectedModel, setSelectedModel,
     graphEvents, setGraphEvents,
     artifacts, setArtifacts,
+    previewCode, setPreviewCode,
     
     // Refs (exposed for direct access/modification in orchestrator)
     conversationHistoryRef,

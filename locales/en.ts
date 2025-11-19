@@ -1,4 +1,5 @@
 
+
 import { Team, TranslationResource } from '../types';
 
 export const en: TranslationResource = {
@@ -27,6 +28,7 @@ export const en: TranslationResource = {
     expand: 'Expand',
     copy: 'Copy',
     copied: 'Copied!',
+    preview: 'Run / Preview',
     generatingImage: 'Generating Image',
     downloadImage: 'Download Image',
   },
@@ -34,6 +36,8 @@ export const en: TranslationResource = {
     placeholder: 'Enter instructions for the President (Audio, Images, PDFs supported)...',
     send: 'Send',
     attach: 'Attach Files',
+    mic: 'Mic',
+    listening: 'Listening...',
     sessionMenu: 'Session Management',
     clearHistory: 'Clear History Only',
     clearHistoryDesc: 'Retains Knowledge Base, resets conversation context.',
@@ -100,6 +104,7 @@ export const en: TranslationResource = {
     errorTitle: 'Error Log',
     errorEmpty: 'No error logs.',
     errorClear: 'Clear Logs',
+    previewTitle: 'Artifact Workbench (Preview)',
   },
   teams: {
     [Team.LEADERSHIP]: "Leadership",

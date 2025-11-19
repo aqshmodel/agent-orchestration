@@ -1,4 +1,5 @@
 
+
 export enum Team {
   LEADERSHIP = "リーダーシップ",
   STRATEGY_PLANNING = "戦略計画チーム",
@@ -74,6 +75,7 @@ export interface TranslationResource {
     expand: string;
     copy: string;
     copied: string;
+    preview: string;
     generatingImage: string;
     downloadImage: string;
   };
@@ -81,6 +83,8 @@ export interface TranslationResource {
     placeholder: string;
     send: string;
     attach: string;
+    mic: string;
+    listening: string;
     sessionMenu: string;
     clearHistory: string;
     clearHistoryDesc: string;
@@ -143,6 +147,7 @@ export interface TranslationResource {
     errorTitle: string;
     errorEmpty: string;
     errorClear: string;
+    previewTitle: string;
   };
   teams: Record<string, string>; // Allow flexible team keys but generally Team enum values
   agents: Record<string, { name: string; role: string }>;

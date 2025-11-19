@@ -1,6 +1,8 @@
+
 import React, { useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Artifact } from '../types';
+import { useAgis } from '../hooks/useAgis';
 
 interface CodeBlockProps {
     code: string;
@@ -11,6 +13,7 @@ interface CodeBlockProps {
 const CodeBlock: React.FC<CodeBlockProps> = ({ code, language = 'text', artifacts }) => {
     const [copied, setCopied] = useState(false);
     const { t } = useLanguage();
+    const { handleOpenPreview } = useAgis();
     
     const handleCopy = () => {
         navigator.clipboard.writeText(code).then(() => {
@@ -90,6 +93,12 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ code, language = 'text', artifact
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     };
+    
+    const handlePreview = () => {
+        if (handleOpenPreview && language) {
+            handleOpenPreview(code, language);
+        }
+    };
 
     let downloadLabel = 'File';
     if (isHTML) downloadLabel = '.html';
@@ -105,6 +114,21 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ code, language = 'text', artifact
                 <code>{code}</code>
             </pre>
             <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* Preview Button for HTML */}
+                {isHTML && (
+                    <button
+                        onClick={handlePreview}
+                        className="bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold py-1 px-2 rounded-md transition-all flex items-center shadow-lg shadow-emerald-900/50"
+                        title={t.agentCard.preview}
+                    >
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Preview
+                    </button>
+                )}
+                
                 <button 
                     onClick={handleCopy} 
                     className="bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-1 px-2 rounded-md transition-all"

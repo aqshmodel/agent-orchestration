@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { AGENTS } from '../constants';
 import Toast from './Toast';
@@ -8,6 +9,7 @@ import KnowledgeBaseModal from './KnowledgeBaseModal';
 import SessionManagerModal from './SessionManagerModal';
 import DependencyGraphModal from './DependencyGraphModal';
 import AgentCard from './AgentCard';
+import ArtifactPreviewModal from './ArtifactPreviewModal';
 import { useAgis } from '../hooks/useAgis';
 
 const ModalManager: React.FC = () => {
@@ -23,12 +25,14 @@ const ModalManager: React.FC = () => {
         isKnowledgeBaseOpen,
         isSessionManagerOpen,
         isGraphModalOpen,
+        isPreviewModalOpen,
         expandedAgentId,
         selectedAgents,
         currentSessionId,
         sharedKnowledgeBaseContent,
         graphEvents,
         artifacts,
+        previewCode,
         handleHumanResponse,
         handleLoadSession,
         handleSaveSession,
@@ -40,6 +44,7 @@ const ModalManager: React.FC = () => {
         setIsKnowledgeBaseOpen,
         setIsSessionManagerOpen,
         setIsGraphModalOpen,
+        setIsPreviewModalOpen,
     } = useAgis();
 
     const expandedAgent = expandedAgentId ? AGENTS.find(a => a.id === expandedAgentId) : null;
@@ -66,6 +71,14 @@ const ModalManager: React.FC = () => {
                     onDelete={handleDeleteSession}
                     onNew={handleNewSession}
                     onClose={() => setIsSessionManagerOpen(false)}
+                />
+            )}
+            {isPreviewModalOpen && previewCode && (
+                <ArtifactPreviewModal 
+                    code={previewCode.code}
+                    language={previewCode.language}
+                    artifacts={artifacts}
+                    onClose={() => setIsPreviewModalOpen(false)}
                 />
             )}
 
