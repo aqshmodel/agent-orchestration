@@ -1,9 +1,8 @@
 
-
 import React, { useRef, useEffect, useState } from 'react';
 import { Agent, Message, Artifact } from '../types';
 import { AGENT_COLORS, TEAM_COLORS } from '../constants';
-import { generateWordDoc } from '../utils/reportGenerator';
+import { generateWordDoc, htmlToMarkdown } from '../utils/reportGenerator';
 import { useLanguage } from '../contexts/LanguageContext';
 import MarkdownRenderer from './MarkdownRenderer';
 
@@ -20,6 +19,7 @@ interface AgentCardProps {
   // Actions
   onExpand?: () => void;
   onClose?: () => void;
+  onPreview?: (code: string, language: string) => void;
 }
 
 const AgentCardComponent: React.FC<AgentCardProps> = ({ 
@@ -32,7 +32,8 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
   finalReport, 
   artifacts, 
   onExpand, 
-  onClose 
+  onClose,
+  onPreview
 }) => {
   // No useAgis() here to prevent re-renders on global state change
   
@@ -50,6 +51,40 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
   // Get translated names safely
   const transAgent = t.agents[agent.id] || { name: agent.name, role: agent.role };
   const transTeam = t.teams[agent.team] || agent.team;
+
+  // --- Robust HTML Detection & Extraction Logic ---
+  const extractHtmlFromContent = (content: string | null | undefined): string | null => {
+      if (!content) return null;
+      
+      // 1. Check for explicit ```html or ```xml blocks containing DOCTYPE
+      const htmlBlockMatch = content.match(/```(?:html|xml)\n([\s\S]*?)```/);
+      if (htmlBlockMatch && (htmlBlockMatch[1].includes('<!DOCTYPE html>') || htmlBlockMatch[1].includes('<html'))) {
+          return htmlBlockMatch[1];
+      }
+
+      // 2. Check for Python multi-line string assignment (e.g. html = """...""")
+      // This handles the case where AI outputs Python code to generate HTML
+      const pythonStringMatch = content.match(/["']{3}\s*(<!DOCTYPE html>[\s\S]*?<\/html>)\s*["']{3}/);
+      if (pythonStringMatch) {
+          return pythonStringMatch[1];
+      }
+
+      // 3. Check for direct HTML structure embedded in text
+      const directMatch = content.match(/<!DOCTYPE html>[\s\S]*?<\/html>/i);
+      if (directMatch) {
+          return directMatch[0];
+      }
+      
+      // 4. Check if the content starts like an HTML file (allowing for whitespace/markdown preamble)
+      if (content.trim().match(/^<!DOCTYPE html>/i) || content.trim().match(/^<html/i)) {
+          return content;
+      }
+
+      return null;
+  };
+
+  const htmlPreviewCode = extractHtmlFromContent(finalReportContent);
+  const isHtmlReport = !!htmlPreviewCode;
 
   // Smart Scroll Logic
   const isUserScrolling = useRef(false);
@@ -106,7 +141,11 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
 
   const handleDownloadMarkdown = () => {
     if (!finalReportContent) return;
-    const blob = new Blob([finalReportContent], { type: 'text/markdown;charset=utf-8' });
+    
+    // Use extracted HTML to convert to markdown if available, otherwise use raw content
+    const contentToSave = htmlPreviewCode ? htmlToMarkdown(htmlPreviewCode) : finalReportContent;
+    
+    const blob = new Blob([contentToSave], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -120,7 +159,10 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
 
   const handleDownloadWord = () => {
       if (!finalReportContent) return;
-      const wordContent = generateWordDoc(finalReportContent, 'A.G.I.S. Report', language);
+      // Use extracted HTML for better Word conversion if available
+      const sourceContent = htmlPreviewCode || finalReportContent;
+      const wordContent = generateWordDoc(sourceContent, 'A.G.I.S. Report', language);
+      
       const blob = new Blob([wordContent], { type: 'application/msword;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -131,6 +173,28 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       setIsDownloadMenuOpen(false);
+  };
+  
+  // New function for downloading full HTML
+  const handleDownloadHtml = () => {
+      if (!htmlPreviewCode) return;
+      const blob = new Blob([htmlPreviewCode], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `AGIS-Report-${new Date().toISOString().slice(0, 10)}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setIsDownloadMenuOpen(false);
+  };
+
+  // --- Preview Logic ---
+  const handlePreviewClick = () => {
+      if (onPreview && htmlPreviewCode) {
+          onPreview(htmlPreviewCode, 'html');
+      }
   };
 
   const TypingIndicator = () => (
@@ -176,6 +240,21 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
                 <span className="text-[10px] font-bold text-cyan-400 bg-cyan-900/80 px-1.5 py-0.5 rounded border border-cyan-700 animate-pulse">{t.agentCard.thinking}</span>
             )}
             
+            {/* Preview Button (Enhanced) */}
+            {htmlPreviewCode && (!isCompact || isExpanded) && onPreview && (
+                <button
+                    onClick={handlePreviewClick}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors flex items-center mr-1 shadow-lg shadow-emerald-900/50"
+                    title={t.agentCard.preview}
+                >
+                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="hidden sm:inline whitespace-nowrap">{t.agentCard.preview}</span>
+                </button>
+            )}
+
             {/* Download Button with Dropdown */}
             {finalReportContent && (!isCompact || isExpanded) && (
                 <div className="relative" ref={downloadMenuRef}>
@@ -191,9 +270,18 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
                   </button>
                   {isDownloadMenuOpen && (
                       <div className="absolute right-0 mt-2 w-64 bg-gray-800 border border-gray-600 rounded-md shadow-xl z-50 overflow-hidden">
+                          {isHtmlReport && (
+                              <button 
+                                onClick={handleDownloadHtml}
+                                className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center whitespace-nowrap font-bold"
+                              >
+                                  <span className="bg-orange-900 text-orange-200 text-[10px] p-1 rounded mr-3 font-mono w-10 text-center">.html</span>
+                                  {t.agentCard.saveHtml}
+                              </button>
+                          )}
                           <button 
                              onClick={handleDownloadMarkdown}
-                             className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center whitespace-nowrap"
+                             className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center border-t border-gray-700 whitespace-nowrap"
                           >
                               <span className="bg-gray-700 text-[10px] p-1 rounded mr-3 font-mono w-10 text-center">.md</span>
                               {t.agentCard.saveMd}
@@ -240,14 +328,38 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
             onScroll={handleScroll} 
             className="flex-grow p-3 overflow-y-auto text-sm space-y-2 relative min-h-0"
         >
-            {agentMessages.map((msg, index) => (
-            <div key={index} className={`${msg.sender === 'user' ? 'text-cyan-300' : 'text-gray-200'}`}>
-                <p className="font-mono text-[10px] text-gray-500 mb-0.5 opacity-70">{msg.timestamp} - {msg.sender.toUpperCase()}</p>
-                <div>
-                    <MarkdownRenderer content={msg.content} artifacts={artifacts} />
+            {/* Special handling for HTML Report */}
+            {isHtmlReport ? (
+                <div className="bg-gray-900/50 border border-dashed border-gray-600 rounded p-6 flex flex-col items-center justify-center text-center min-h-[200px]">
+                    <div className="text-4xl mb-2">📄</div>
+                    <h4 className="text-lg font-bold text-gray-200 mb-2">Final Report Generated</h4>
+                    <p className="text-sm text-gray-400 mb-4">
+                        {language === 'en' ? 'The final report is available as a full HTML document.' : '最終レポートがHTMLドキュメントとして生成されました。'}
+                    </p>
+                    {htmlPreviewCode && onPreview && (
+                        <button 
+                            onClick={handlePreviewClick}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded shadow-lg transition-transform hover:scale-105 flex items-center gap-2"
+                        >
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            {t.agentCard.preview}
+                        </button>
+                    )}
                 </div>
-            </div>
-            ))}
+            ) : (
+                /* Normal Markdown Rendering for other agents */
+                agentMessages.map((msg, index) => (
+                    <div key={index} className={`${msg.sender === 'user' ? 'text-cyan-300' : 'text-gray-200'}`}>
+                        <p className="font-mono text-[10px] text-gray-500 mb-0.5 opacity-70">{msg.timestamp} - {msg.sender.toUpperCase()}</p>
+                        <div>
+                            <MarkdownRenderer content={msg.content} artifacts={artifacts} />
+                        </div>
+                    </div>
+                ))
+            )}
             {isThinking && <TypingIndicator />}
         </div>
       )}
@@ -284,8 +396,7 @@ const arePropsEqual = (prevProps: AgentCardProps, nextProps: AgentCardProps) => 
     return false;
   }
 
-  // Ignore function props (onExpand, onClose) as they might be re-created on parent render
-  // but typically don't change behavior. We prioritize data stability.
+  // Ignore function props (onExpand, onClose, onPreview)
 
   return true;
 };

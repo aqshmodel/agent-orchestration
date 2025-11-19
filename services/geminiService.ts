@@ -186,14 +186,17 @@ export const fixMermaidCode = async (code: string, errorMessage: string): Promis
     try {
         const prompt = `
 Fix the following Mermaid diagram code which caused a syntax error.
-Return ONLY the corrected Mermaid code enclosed in a markdown code block (e.g., \`\`\`mermaid ... \`\`\`).
-Do not add any explanation.
+The error is commonly caused by unescaped parentheses '()', brackets '[]', or braces '{}' inside node labels or edge labels.
+**RULE: Enclose ALL labels containing special characters or Japanese text in double quotes.**
+(e.g., Change A[Text(Example)] to A["Text(Example)"])
 
 Error Message:
 ${errorMessage}
 
 Broken Code:
 ${code}
+
+Return ONLY the corrected Mermaid code enclosed in a markdown code block.
 `;
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-pro',
@@ -235,15 +238,36 @@ export const generateResponseStream = async (
     
     const configTools: Tool[] = [];
     
+    // Check if model is a "Flash" variant
+    const isFlashModel = modelName.toLowerCase().includes('flash');
+    
     if (useSearch) {
+        // If search is enabled, add Google Search tool
         configTools.push({ googleSearch: {} });
-    }
-    
-    // Enable Code Execution for Gemini Models
-    configTools.push({ codeExecution: {} });
-    
-    if (tools && tools.length > 0) {
-        configTools.push({ functionDeclarations: tools });
+        
+        // Flash models strictly enforce exclusive usage of Search tool.
+        // Pro models (2.5-pro, 3-pro) tolerate mixing Search with other tools.
+        if (!isFlashModel) {
+             configTools.push({ codeExecution: {} });
+             if (tools && tools.length > 0) {
+                 configTools.push({ functionDeclarations: tools });
+             }
+        }
+    } else {
+        // If search is NOT enabled
+        
+        // For Flash models, if Function Declarations (tools) are present,
+        // we prioritize them and disable Code Execution to prevent tool conflict/looping issues.
+        // This specifically targets the Orchestrator when running on Flash.
+        if (isFlashModel && tools && tools.length > 0) {
+             configTools.push({ functionDeclarations: tools });
+        } else {
+             // Default behavior: Code Execution + Tools (if any)
+             configTools.push({ codeExecution: {} });
+             if (tools && tools.length > 0) {
+                 configTools.push({ functionDeclarations: tools });
+             }
+        }
     }
 
     // Config setup

@@ -1,3 +1,5 @@
+
+
 import React, { useEffect, useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Artifact } from '../types';
@@ -54,7 +56,7 @@ const ArtifactPreviewModal: React.FC<ArtifactPreviewModalProps> = ({ code, langu
   }, [code, language, artifacts]);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[100] animate-fade-in">
+    <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[200] animate-fade-in">
       <div className="bg-gray-900 border border-cyan-500 rounded-lg w-full max-w-[90vw] h-[90vh] flex flex-col shadow-2xl shadow-cyan-500/30 overflow-hidden">
         
         {/* Header */}
@@ -76,7 +78,7 @@ const ArtifactPreviewModal: React.FC<ArtifactPreviewModalProps> = ({ code, langu
                  <iframe 
                     srcDoc={processedCode}
                     title="Artifact Preview"
-                    className="w-full h-full border-none"
+                    className="w-full h-full border-none bg-white"
                     sandbox="allow-scripts allow-modals allow-forms allow-popups allow-same-origin" 
                  />
             ) : (

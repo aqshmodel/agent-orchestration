@@ -163,6 +163,7 @@ export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
                         agentTasks.push({ agent: targetAgent, query });
                     } else {
                         console.warn(`Agent alias ${targetAlias} not found`);
+                        state.appendToHistory(`[System Error] '${fnName}' failed: Agent alias '${targetAlias}' not found in directory. Please check valid aliases.`);
                     }
 
                 } else if (fnName === 'invoke_parallel') {
@@ -172,6 +173,8 @@ export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
                             if (targetAgent) {
                                 agentTasks.push({ agent: targetAgent, query: t.prompts.taskInstruction.replace('{query}', inv.query) });
                                 state.addGraphEvent({ from: 'orchestrator', to: inv.agent_alias, type: 'invoke', timestamp: Date.now() });
+                            } else {
+                                state.appendToHistory(`[System Error] invoke_parallel failed for one agent: Agent alias '${inv.agent_alias}' not found.`);
                             }
                         });
                 } else if (fnName === 'add_member') {
@@ -188,6 +191,9 @@ export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
                             
                         state.showToast(message, 'info');
                         memberAdded = true;
+                    } else {
+                        state.appendToHistory(`[System Error] add_member failed: Agent alias '${args.agent_alias}' not found in directory. Please check valid aliases in the prompt.`);
+                        console.warn(`add_member failed: alias ${args.agent_alias} not found`);
                     }
                 }
             }

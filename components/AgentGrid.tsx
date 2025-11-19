@@ -7,7 +7,7 @@ import { useAgis } from '../hooks/useAgis';
 import { useLanguage } from '../contexts/LanguageContext';
 
 const AgentGrid: React.FC = () => {
-    const { selectedAgents, messages, thinkingAgents, artifacts, setExpandedAgentId } = useAgis();
+    const { selectedAgents, messages, thinkingAgents, artifacts, setExpandedAgentId, handleOpenPreview } = useAgis();
     const { t } = useLanguage();
 
     const specialistAgents = AGENTS.slice(2);
@@ -59,6 +59,7 @@ const AgentGrid: React.FC = () => {
                                         isThinking={thinkingAgents.has(agent.id)}
                                         artifacts={artifacts}
                                         onExpand={() => setExpandedAgentId(agent.id)}
+                                        onPreview={handleOpenPreview}
                                     />
                                 ))}
                             </div>
@@ -76,6 +77,7 @@ const AgentGrid: React.FC = () => {
                             isThinking={thinkingAgents.has(agent.id)}
                             artifacts={artifacts}
                             onExpand={() => setExpandedAgentId(agent.id)}
+                            onPreview={handleOpenPreview}
                         />
                     ))}
                 </div>

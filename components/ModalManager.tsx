@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import { AGENTS } from '../constants';
 import Toast from './Toast';
@@ -45,6 +44,7 @@ const ModalManager: React.FC = () => {
         setIsSessionManagerOpen,
         setIsGraphModalOpen,
         setIsPreviewModalOpen,
+        handleOpenPreview,
     } = useAgis();
 
     const expandedAgent = expandedAgentId ? AGENTS.find(a => a.id === expandedAgentId) : null;
@@ -96,6 +96,7 @@ const ModalManager: React.FC = () => {
                             finalReport={expandedAgent.id === 'president' ? finalReport : null}
                             artifacts={artifacts}
                             onClose={() => setExpandedAgentId(null)}
+                            onPreview={handleOpenPreview}
                         />
                     </div>
                 </div>

@@ -9,7 +9,7 @@ import ModalManager from './components/ModalManager';
 import { useAgis } from './hooks/useAgis';
 
 const App: React.FC = () => {
-  const { systemStatus, messages, thinkingAgents, finalReport, artifacts, setExpandedAgentId } = useAgis();
+  const { systemStatus, messages, thinkingAgents, finalReport, artifacts, setExpandedAgentId, handleOpenPreview } = useAgis();
 
   // Dynamic Background Logic
   const getBackgroundGradient = (status: string) => {
@@ -66,6 +66,7 @@ const App: React.FC = () => {
                   finalReport={agent.id === 'president' ? finalReport : null}
                   artifacts={artifacts}
                   onExpand={() => setExpandedAgentId(agent.id)}
+                  onPreview={handleOpenPreview}
                 />
             ))}
             </div>

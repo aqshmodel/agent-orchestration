@@ -1,9 +1,97 @@
 
+
 import { Artifact } from "../types";
 
 declare const marked: any;
 
+// Helper to strip HTML tags for text/markdown export
+export const stripHtml = (html: string): string => {
+    // Create a temporary DOM element to parse HTML
+    const tempDiv = document.createElement("div");
+    tempDiv.innerHTML = html;
+    
+    // Basic extraction - this is a simple approach. 
+    // For better results, we might want to replace <br> with \n, <li> with - , etc.
+    
+    // Replace block elements with newlines to preserve structure
+    const blockElements = ['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'br', 'tr'];
+    blockElements.forEach(tag => {
+        const elements = tempDiv.getElementsByTagName(tag);
+        for (let i = elements.length - 1; i >= 0; i--) {
+            const el = elements[i];
+            if (tag === 'br') {
+                 el.parentNode?.replaceChild(document.createTextNode('\n'), el);
+            } else {
+                 // Add newline after block elements
+                 const newline = document.createTextNode('\n');
+                 el.parentNode?.insertBefore(newline, el.nextSibling);
+            }
+        }
+    });
+
+    return tempDiv.textContent || tempDiv.innerText || "";
+};
+
+// Helper to convert HTML structure to Markdown-like text
+export const htmlToMarkdown = (html: string): string => {
+    let text = html;
+    
+    // Remove head, script, style
+    text = text.replace(/<head>[\s\S]*?<\/head>/gi, '');
+    text = text.replace(/<script[\s\S]*?<\/script>/gi, '');
+    text = text.replace(/<style[\s\S]*?<\/style>/gi, '');
+    
+    // Headings
+    text = text.replace(/<h1[^>]*>(.*?)<\/h1>/gi, '\n# $1\n');
+    text = text.replace(/<h2[^>]*>(.*?)<\/h2>/gi, '\n## $1\n');
+    text = text.replace(/<h3[^>]*>(.*?)<\/h3>/gi, '\n### $1\n');
+    
+    // Lists
+    text = text.replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n');
+    text = text.replace(/<ul[^>]*>/gi, '\n');
+    text = text.replace(/<\/ul>/gi, '\n');
+    
+    // Paragraphs and Breaks
+    text = text.replace(/<p[^>]*>/gi, '\n');
+    text = text.replace(/<\/p>/gi, '\n');
+    text = text.replace(/<br\s*\/?>/gi, '\n');
+    
+    // Bold/Italic
+    text = text.replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**');
+    text = text.replace(/<b[^>]*>(.*?)<\/b>/gi, '**$1**');
+    text = text.replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*');
+    
+    // Links
+    text = text.replace(/<a[^>]+href="([^"]+)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)');
+
+    // Remove remaining tags
+    text = text.replace(/<[^>]+>/g, '');
+    
+    // Fix multiple newlines
+    text = text.replace(/\n\s*\n/g, '\n\n');
+    
+    // Decode entities
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = text;
+    return textarea.value.trim();
+};
+
 export const generateHtmlReport = (markdownContent: string, title: string = 'A.G.I.S. Strategic Report', language: 'ja' | 'en' = 'ja', artifacts?: Record<string, Artifact>): string => {
+  // If content is already a full HTML document, return it as is (maybe with artifact injection)
+  if (markdownContent.trim().startsWith('<!DOCTYPE html>') || markdownContent.trim().startsWith('<html')) {
+      let processedHtml = markdownContent;
+      if (artifacts) {
+          processedHtml = processedHtml.replace(/<GENERATE_IMAGE\s+PROMPT="([^"]+)"[^>]*\/>/g, (match, prompt) => {
+             const foundArtifact = Object.values(artifacts).find(art => art.description.includes(prompt.substring(0, 20)));
+             if (foundArtifact && foundArtifact.type === 'image') {
+                 return `<img src="data:${foundArtifact.mimeType};base64,${foundArtifact.data}" alt="${prompt}" class="generated-image" />`;
+             }
+             return match;
+          });
+      }
+      return processedHtml;
+  }
+
   const locale = language === 'en' ? 'en-US' : 'ja-JP';
   const date = new Date().toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
   const tocTitle = language === 'en' ? 'Table of Contents' : '目次';
@@ -283,8 +371,10 @@ export const generateHtmlReport = (markdownContent: string, title: string = 'A.G
 </html>`;
 };
 
-export const generateWordDoc = (markdownContent: string, title: string = 'A.G.I.S. Report', language: 'ja' | 'en' = 'ja'): string => {
-    let bodyContent = markdownContent;
+export const generateWordDoc = (content: string, title: string = 'A.G.I.S. Report', language: 'ja' | 'en' = 'ja'): string => {
+    const isHtml = content.trim().startsWith('<!DOCTYPE html>') || content.trim().startsWith('<html');
+    let bodyContent = isHtml ? htmlToMarkdown(content) : content;
+
     const locale = language === 'en' ? 'en-US' : 'ja-JP';
     const dateStr = new Date().toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -321,13 +411,13 @@ export const generateWordDoc = (markdownContent: string, title: string = 'A.G.I.
 
         // Parse
         try {
-            bodyContent = marked.parse(markdownContent, { renderer });
+            bodyContent = marked.parse(bodyContent, { renderer });
         } catch (e) {
-             bodyContent = `<pre>${markdownContent}</pre>`;
+             bodyContent = `<pre>${bodyContent}</pre>`;
         }
     } else {
         // Fallback: Wrap in pre if marked is missing
-        bodyContent = `<pre>${markdownContent}</pre>`;
+        bodyContent = `<pre>${bodyContent}</pre>`;
     }
     
     // Simple replace for Artifact Tags in Word (Placeholder only as we can't inject base64 blobs easily into simple HTML-Word export)
