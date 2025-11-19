@@ -181,6 +181,41 @@ export const generateImage = async (prompt: string, aspectRatio: '1:1' | '16:9' 
     }
 };
 
+// Helper to fix broken Mermaid code
+export const fixMermaidCode = async (code: string, errorMessage: string): Promise<string | null> => {
+    try {
+        const prompt = `
+Fix the following Mermaid diagram code which caused a syntax error.
+Return ONLY the corrected Mermaid code enclosed in a markdown code block (e.g., \`\`\`mermaid ... \`\`\`).
+Do not add any explanation.
+
+Error Message:
+${errorMessage}
+
+Broken Code:
+${code}
+`;
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-pro',
+            contents: prompt,
+            config: {
+                responseMimeType: 'text/plain',
+            }
+        });
+        
+        const text = response.text;
+        if (!text) return null;
+        
+        // Extract code from markdown block if present
+        const match = text.match(/```(?:mermaid)?\n([\s\S]*?)```/);
+        return match ? match[1].trim() : text.trim();
+        
+    } catch (e) {
+        console.error("Failed to fix mermaid code:", e);
+        return null;
+    }
+};
+
 export const generateResponseStream = async (
   systemPrompt: string,
   prompt: string,
