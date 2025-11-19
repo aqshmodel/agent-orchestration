@@ -13,6 +13,7 @@ export const translations = {
       modelLow: 'Gemini 3.0 Pro (Fast)',
       modelFlash: 'Gemini 2.5 Flash (Fast)',
       btnBrain: '知識ベース',
+      btnGraph: '組織図',
       btnSession: 'セッション',
       btnError: 'エラーログ',
     },
@@ -64,11 +65,14 @@ export const translations = {
       loopLimit: '自律思考ループの安全上限（30回）に到達しました。\n\n現在のタスクはまだ完了していません。処理を継続しますか？\n継続する場合は「はい」と入力、または具体的な指示を入力して送信してください。',
     },
     modal: {
-      kbTitle: '組織の脳 (Shared Knowledge Base)',
+      kbTitle: '組織の知識ベース (Shared Knowledge Base)',
       kbCopy: 'クリップボードにコピー',
       kbCopied: 'コピーしました',
       kbEmpty: 'まだ知識は蓄積されていません...',
       kbChars: '現在蓄積されている文字数',
+      
+      graphTitle: 'インタラクティブ組織図 (Dependency Graph)',
+      graphDesc: 'エージェント間のタスク依存関係と情報の流れを可視化しています。ノードをクリックするとエージェント詳細が開きます。',
       
       sessionTitle: 'プロジェクト・セッション管理',
       sessionSaveTitle: '現在の状態を保存',
@@ -186,7 +190,20 @@ export const translations = {
         taskInstruction: "【タスク指示】\n{query}",
         consultation: "【相談 from {from}】\n{query}",
         reviewRequest: "【レビュー依頼 (対象: {target}の報告書)】\n{query}",
-        systemInstructionOverride: "" // Japanese doesn't need override
+        systemInstructionOverride: "", 
+        orchestratorMandatoryRules: `
+【重要: 行動規範】
+1. **思考の開示 (Mandatory):** ユーザーに対して、現在の状況分析、次の手、その理由を説明する「思考プロセス (Thought)」を**必ず**テキストで出力してください。
+   - 「○○について考える必要がある」「次は××を呼び出す」といった思考の流れを明示してください。
+2. **ツールの使用:** 行動（エージェントの呼び出し、完了報告など）は、**必ず**提供されたツール (Function Calling) を使用して実行してください。
+3. **フォーマット:** 
+   - (1) テキストで思考を記述する。
+   - (2) ツールを呼び出す。
+   - **禁止:** テキストとして 'Action: AGIS_CMD::...' のようなコマンド文字列をそのまま出力することは厳禁です。必ずToolを使用してください。
+
+例:
+"市場分析が必要だと判断しました。アナリストを呼び出します。" -> [Tool: invoke(analyst, ...)]
+`
     },
     context: {
         knowledgeBaseHeader: "--- 共有知識ベース (Key Insights) ---",
@@ -210,6 +227,7 @@ export const translations = {
       modelLow: 'Gemini 3.0 Pro (Fast)',
       modelFlash: 'Gemini 2.5 Flash (Fast)',
       btnBrain: 'Knowledge Base',
+      btnGraph: 'Org Graph',
       btnSession: 'Session',
       btnError: 'Error Log',
     },
@@ -266,6 +284,9 @@ export const translations = {
       kbCopied: 'Copied',
       kbEmpty: 'No knowledge accumulated yet...',
       kbChars: 'Current character count',
+
+      graphTitle: 'Interactive Dependency Graph',
+      graphDesc: 'Visualizing task dependencies and information flow between agents. Click a node to expand agent details.',
       
       sessionTitle: 'Project Session Manager',
       sessionSaveTitle: 'Save Current State',
@@ -383,7 +404,20 @@ export const translations = {
         taskInstruction: "[Task Instruction]\n{query}",
         consultation: "[Consultation from {from}]\n{query}",
         reviewRequest: "[Review Request (Target: {target}'s report)]\n{query}",
-        systemInstructionOverride: "\n\n[IMPORTANT: LANGUAGE OVERRIDE]\nThe user has selected ENGLISH mode. Regardless of the fact that your original instructions are in Japanese, you MUST think, act, and generate ALL outputs, reports, and responses in ENGLISH."
+        systemInstructionOverride: "\n\n[IMPORTANT: LANGUAGE OVERRIDE]\nThe user has selected ENGLISH mode. Regardless of the fact that your original instructions are in Japanese, you MUST think, act, and generate ALL outputs, reports, and responses in ENGLISH.\n**This includes ALL text within graphs, charts (Mermaid), and Python plots.**\n\n**[MANDATORY FORMATTING]**\nYou MUST conclude your report with a section titled '**Key Insights**' containing bullet points of critical findings, followed by a section titled '**Proposals to Orchestrator**'. Use these EXACT headers.",
+        orchestratorMandatoryRules: `
+[IMPORTANT: BEHAVIORAL RULES]
+1. **Reveal Thought Process (Mandatory):** You MUST output your "Thought Process" in text to the user, explaining the current situation analysis, the next move, and the reason for it.
+   - Explicitly state your flow of thought, e.g., "I need to consider...", "Next, I will invoke...".
+2. **Use Tools:** Actions (invoking agents, completing tasks, etc.) MUST be performed using the provided tools (Function Calling).
+3. **Format:**
+   - (1) Describe your thought process in text.
+   - (2) Call the tool.
+   - **PROHIBITED:** Do NOT output command strings like 'Action: AGIS_CMD::...' as text. You MUST use the Tool.
+
+Example:
+"I have determined that market analysis is necessary. I will invoke the Analyst." -> [Tool: invoke(analyst, ...)]
+`
     },
     context: {
         knowledgeBaseHeader: "--- Shared Knowledge Base (Key Insights) ---",

@@ -28,3 +28,21 @@ export interface Message {
   content: string;
   timestamp: string;
 }
+
+export interface GraphEvent {
+  from: string; // alias or id
+  to: string;   // alias or id
+  type: 'invoke' | 'consult' | 'review' | 'add_member' | 'report' | 'instruction';
+  label?: string;
+  timestamp: number;
+}
+
+export interface Artifact {
+  id: string;
+  type: 'image' | 'file';
+  mimeType: string;
+  data: string; // Base64
+  description?: string;
+  agentId: string;
+  timestamp: number;
+}

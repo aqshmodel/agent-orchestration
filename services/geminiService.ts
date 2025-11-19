@@ -1,6 +1,7 @@
 
 import { GoogleGenAI, FunctionDeclaration, Tool, FunctionCall, GenerateContentResponse, Part } from "@google/genai";
 import { translations } from "../locales/translations";
+import { Artifact } from "../types";
 
 const API_KEY = process.env.API_KEY;
 
@@ -135,6 +136,7 @@ const buildContents = (prompt: string, context?: string, knowledgeBase?: string,
 export type StreamResponseResult = {
     text: string;
     functionCalls: FunctionCall[];
+    artifacts: Artifact[];
 };
 
 export const generateResponseStream = async (
@@ -148,7 +150,8 @@ export const generateResponseStream = async (
   files?: UploadedFile[],
   tools?: FunctionDeclaration[],
   thinkingConfig?: { thinkingBudget?: number, includeThoughts?: boolean },
-  language: 'ja' | 'en' = 'ja'
+  language: 'ja' | 'en' = 'ja',
+  agentId: string = 'unknown' // To tag artifacts
 ): Promise<StreamResponseResult> => {
   try {
     const contents = buildContents(prompt, context, knowledgeBase, files, language);
@@ -189,6 +192,7 @@ export const generateResponseStream = async (
 
     let fullText = "";
     const functionCalls: FunctionCall[] = [];
+    const artifacts: Artifact[] = [];
 
     for await (const chunk of responseStream) {
       if (chunk.candidates) {
@@ -214,15 +218,30 @@ export const generateResponseStream = async (
                    fullText += resultBlock;
                    onChunk(fullText);
               }
-              // Code Execution: Generated Images (if inlineData exists in parts which is rare for this SDK version but possible)
-              // Note: In the current API version, images from code execution usually come as inlineData in a separate part
+              // Code Execution: Generated Images
+              // Extract image data to Artifacts and replace with Reference Tag in text stream
               if (part.inlineData) {
                   const mimeType = part.inlineData.mimeType;
                   const data = part.inlineData.data;
                   if (mimeType.startsWith('image/')) {
-                      // Convert to a Markdown image format that AgentCard can render
-                      const imageMarkdown = `\n![Generated Image](data:${mimeType};base64,${data})\n`;
-                      fullText += imageMarkdown;
+                      const artifactId = `fig_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+                      const description = "Generated Figure";
+                      
+                      // Store artifact
+                      artifacts.push({
+                          id: artifactId,
+                          type: 'image',
+                          mimeType: mimeType,
+                          data: data,
+                          description: description,
+                          agentId: agentId,
+                          timestamp: Date.now()
+                      });
+
+                      // Inject Reference Tag instead of raw image
+                      // This keeps the context light and allows the President to reference it
+                      const referenceTag = `\n<FIGURE ID="${artifactId}" DESC="${description}" />\n`;
+                      fullText += referenceTag;
                       onChunk(fullText);
                   }
               }
@@ -237,7 +256,7 @@ export const generateResponseStream = async (
       }
     }
     
-    return { text: fullText, functionCalls };
+    return { text: fullText, functionCalls, artifacts };
 
   } catch (error) {
     console.error("Error generating response stream:", error);

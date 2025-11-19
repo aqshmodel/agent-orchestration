@@ -9,6 +9,7 @@ import QuestionModal from './components/QuestionModal';
 import ErrorLogModal from './components/ErrorLogModal';
 import KnowledgeBaseModal from './components/KnowledgeBaseModal';
 import SessionManagerModal from './components/SessionManagerModal';
+import DependencyGraphModal from './components/DependencyGraphModal';
 import { useAgis } from './hooks/useAgis';
 import { useLanguage } from './contexts/LanguageContext';
 
@@ -27,6 +28,7 @@ const App: React.FC = () => {
     isErrorLogModalOpen,
     isKnowledgeBaseOpen,
     isSessionManagerOpen,
+    isGraphModalOpen,
     expandedAgentId,
     selectedAgents,
     systemStatus,
@@ -34,6 +36,8 @@ const App: React.FC = () => {
     currentSessionId,
     sharedKnowledgeBaseContent,
     selectedModel,
+    graphEvents,
+    artifacts, // Import artifacts
 
     // Actions
     handleSendMessage,
@@ -50,6 +54,7 @@ const App: React.FC = () => {
     setIsErrorLogModalOpen,
     setIsKnowledgeBaseOpen,
     setIsSessionManagerOpen,
+    setIsGraphModalOpen,
     setSelectedModel,
   } = useAgis();
   
@@ -133,6 +138,7 @@ const App: React.FC = () => {
       {humanQuestion && <QuestionModal question={humanQuestion} onSubmit={handleHumanResponse} isLoading={isLoading} />}
       {isErrorLogModalOpen && <ErrorLogModal logs={errorLogs} onClose={() => setIsErrorLogModalOpen(false)} onClear={clearErrorLogs} />}
       {isKnowledgeBaseOpen && <KnowledgeBaseModal content={sharedKnowledgeBaseContent} onClose={() => setIsKnowledgeBaseOpen(false)} />}
+      {isGraphModalOpen && <DependencyGraphModal events={graphEvents} selectedAgents={selectedAgents} onClose={() => setIsGraphModalOpen(false)} onAgentClick={(id) => setExpandedAgentId(id)} />}
       {isSessionManagerOpen && (
         <SessionManagerModal 
             currentSessionId={currentSessionId}
@@ -158,6 +164,7 @@ const App: React.FC = () => {
                 finalReportContent={expandedAgent.id === 'president' ? finalReport : null}
                 isExpanded={true}
                 onClose={() => setExpandedAgentId(null)}
+                artifacts={artifacts} // Pass artifacts
               />
           </div>
         </div>
@@ -192,7 +199,7 @@ const App: React.FC = () => {
         
         <div className="flex-1 text-center">
             <h1 className="text-2xl font-bold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">{t.app.title}</h1>
-            <p className="text-gray-400 text-[10px] tracking-widest">{t.app.subtitle}</p>
+            <p className="text-gray-400 text-[10px] text-center tracking-widest">{t.app.subtitle}</p>
         </div>
         
         <div className="flex-1 flex justify-end items-center space-x-3">
@@ -206,6 +213,18 @@ const App: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
                 <span className="hidden sm:inline">{t.app.btnBrain}</span>
+            </button>
+
+             {/* Graph Button */}
+             <button 
+                onClick={() => setIsGraphModalOpen(true)} 
+                className="bg-indigo-900/60 hover:bg-indigo-800/80 border border-indigo-600 text-indigo-200 text-xs font-bold py-1.5 px-3 rounded-md transition-colors flex items-center gap-2" 
+                title={t.app.btnGraph}
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                </svg>
+                <span className="hidden sm:inline">{t.app.btnGraph}</span>
             </button>
 
             {/* Session Manager Button */}
@@ -250,6 +269,7 @@ const App: React.FC = () => {
               isThinking={thinkingAgents.has(agent.id)} 
               finalReportContent={agent.id === 'president' ? finalReport : null}
               onExpand={() => setExpandedAgentId(agent.id)}
+              artifacts={artifacts} // Pass artifacts
             />
           ))}
         </div>
@@ -258,7 +278,6 @@ const App: React.FC = () => {
             <div className="space-y-4">
               {teamOrder.map(teamName => (
                 <div key={teamName}>
-                  {/* Translate Team Name: Use type assertion for t.teams access */}
                   <h3 className={`text-sm font-bold p-2 rounded-t-lg ${TEAM_COLORS[teamName].bg} ${TEAM_COLORS[teamName].text} border-b-2 ${TEAM_COLORS[teamName].border}`}>{(t.teams as any)[teamName] || teamName}</h3>
                   <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 p-2 rounded-b-lg ${TEAM_COLORS[teamName].bg}`}>
                     {(specialistAgentsByTeam[teamName] || []).map(agent => (
@@ -270,6 +289,7 @@ const App: React.FC = () => {
                         isThinking={false}
                         isCompact={true}
                         onExpand={() => setExpandedAgentId(agent.id)}
+                        artifacts={artifacts}
                       />
                     ))}
                   </div>
@@ -287,6 +307,7 @@ const App: React.FC = () => {
                     isThinking={thinkingAgents.has(agent.id)}
                     isCompact={false}
                     onExpand={() => setExpandedAgentId(agent.id)}
+                    artifacts={artifacts}
                   />
                 ))}
             </div>

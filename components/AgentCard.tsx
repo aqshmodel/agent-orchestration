@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect, useState } from 'react';
-import { Agent, Message } from '../types';
+import { Agent, Message, Artifact } from '../types';
 import { AGENT_COLORS, TEAM_COLORS } from '../constants';
 import { generateHtmlReport, generateWordDoc } from '../utils/reportGenerator';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -18,6 +18,7 @@ interface AgentCardProps {
   isExpanded?: boolean;
   onExpand?: () => void;
   onClose?: () => void;
+  artifacts?: Record<string, Artifact>; // New prop
 }
 
 const CodeBlock: React.FC<{ code: string, language?: string }> = ({ code, language = 'text' }) => {
@@ -101,15 +102,57 @@ const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
     );
 };
 
-const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, finalReportContent, isCompact, isExpanded, onExpand, onClose }) => {
+const ArtifactBlock: React.FC<{ id: string, description: string, artifacts?: Record<string, Artifact> }> = ({ id, description, artifacts }) => {
+    const artifact = artifacts ? artifacts[id] : undefined;
+
+    if (!artifact) {
+        return (
+            <div className="my-2 p-3 border border-dashed border-gray-500 bg-gray-800/50 rounded text-gray-400 text-xs">
+                [Artifact: {id} not found] {description}
+            </div>
+        );
+    }
+
+    if (artifact.type === 'image') {
+        return (
+            <div className="my-4 bg-gray-900/80 p-2 rounded border border-gray-700">
+                <div className="mb-1 text-[10px] text-gray-400 flex justify-between">
+                    <span>{description || artifact.description}</span>
+                    <span className="font-mono">{new Date(artifact.timestamp).toLocaleTimeString()}</span>
+                </div>
+                <img 
+                    src={`data:${artifact.mimeType};base64,${artifact.data}`} 
+                    alt={description} 
+                    className="max-w-full h-auto rounded shadow-lg mx-auto" 
+                />
+                <div className="mt-1 text-center">
+                    <a 
+                        href={`data:${artifact.mimeType};base64,${artifact.data}`} 
+                        download={`figure-${id}.png`}
+                        className="text-[10px] text-cyan-400 hover:underline cursor-pointer"
+                    >
+                        Download Image
+                    </a>
+                </div>
+            </div>
+        );
+    }
+    
+    return (
+        <div className="my-2 p-2 bg-gray-800 rounded">
+            Unknown Artifact Type: {artifact.type}
+        </div>
+    );
+};
+
+const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, finalReportContent, isCompact, isExpanded, onExpand, onClose, artifacts }) => {
   const teamColor = AGENT_COLORS[agent.id] ?? TEAM_COLORS[agent.team];
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [highlight, setHighlight] = useState(false);
   const prevMessagesLength = useRef(messages.length);
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   
   // Get translated names
-  // Use type assertion to allow string indexing if types are strict
   const transAgent = (t.agents as any)[agent.id] || { name: agent.name, role: agent.role };
   const transTeam = (t.teams as any)[agent.team] || agent.team;
 
@@ -182,7 +225,7 @@ const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, 
 
   const handleDownloadHtml = () => {
       if (!finalReportContent) return;
-      const htmlContent = generateHtmlReport(finalReportContent);
+      const htmlContent = generateHtmlReport(finalReportContent, 'A.G.I.S. Strategic Report', language, artifacts);
       const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -197,8 +240,8 @@ const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, 
 
   const handleDownloadWord = () => {
       if (!finalReportContent) return;
-      const wordContent = generateWordDoc(finalReportContent);
-      // Using application/msword to trigger Word opening
+      // Note: Word doc generator handles basic markdown, artifacts injection is limited to simple placeholders or basic images if handled
+      const wordContent = generateWordDoc(finalReportContent, 'A.G.I.S. Report', language);
       const blob = new Blob([wordContent], { type: 'application/msword;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -220,12 +263,11 @@ const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, 
   );
   
   const renderContent = (content: string) => {
-    // Split by code blocks (```...```)
+    // 1. Split by code blocks first
     const parts = content.split(/(```[\s\S]*?```)/g).filter(Boolean);
     
     return parts.map((part, i) => {
         if (part.startsWith('```') && part.endsWith('```')) {
-            // Extract code content and potential language
             const firstLine = part.split('\n')[0];
             const language = firstLine.replace(/^```/, '').trim();
             const code = part.slice(firstLine.length, -3).trim();
@@ -236,39 +278,52 @@ const AgentCard: React.FC<AgentCardProps> = ({ id, agent, messages, isThinking, 
             return <CodeBlock key={i} code={code} language={language} />;
         }
 
-        // Normal text processing with Markdown-like image handling
-        return part.trim().split(/\n\s*\n/).map((paragraph, j) => {
-            const lines = paragraph.split('\n').filter(line => line.trim() !== '');
-            const isUnorderedList = lines.every(line => line.trim().startsWith('* ') || line.trim().startsWith('- '));
-            const isOrderedList = lines.every(line => /^\d+\.\s/.test(line.trim()));
+        // 2. Split by Artifact Tags: <FIGURE ID="..." DESC="..." />
+        // Regex to match <FIGURE ... />
+        const artifactParts = part.split(/(<FIGURE\s+ID="[^"]+"\s+DESC="[^"]*"\s*\/>)/g).filter(Boolean);
 
-            // Check for inline image (e.g., from code execution or file upload context simulation)
-            const imgMatch = paragraph.match(/!\[(.*?)\]\((data:image\/.*?;base64,.*?)\)/);
-            if (imgMatch) {
-                return (
-                    <div key={`${i}-${j}`} className="my-3">
-                        <img src={imgMatch[2]} alt={imgMatch[1]} className="max-w-full h-auto rounded border border-gray-600 shadow-lg mx-auto" />
-                        <p className="text-center text-xs text-gray-500 mt-1">{imgMatch[1]}</p>
-                    </div>
-                );
+        return artifactParts.map((subPart, j) => {
+            const match = subPart.match(/<FIGURE\s+ID="([^"]+)"\s+DESC="([^"]*)"\s*\/>/);
+            if (match) {
+                const artifactId = match[1];
+                const desc = match[2];
+                return <ArtifactBlock key={`${i}-${j}`} id={artifactId} description={desc} artifacts={artifacts} />;
             }
 
-            if (isUnorderedList) {
-                return (
-                    <ul key={`${i}-${j}`} className="list-disc list-inside space-y-1 my-2 pl-4">
-                        {lines.map((item, k) => <li key={k}>{item.trim().substring(2)}</li>)}
-                    </ul>
-                );
-            }
-            if (isOrderedList) {
-                 return (
-                    <ol key={`${i}-${j}`} className="list-decimal list-inside space-y-1 my-2 pl-4">
-                        {lines.map((item, k) => <li key={k}>{item.trim().replace(/^\d+\.\s/, '')}</li>)}
-                    </ol>
-                );
-            }
-            
-            return <p key={`${i}-${j}`} className="my-2 whitespace-pre-wrap break-words leading-relaxed">{paragraph}</p>;
+            // 3. Normal text processing
+            return subPart.trim().split(/\n\s*\n/).map((paragraph, k) => {
+                const lines = paragraph.split('\n').filter(line => line.trim() !== '');
+                const isUnorderedList = lines.every(line => line.trim().startsWith('* ') || line.trim().startsWith('- '));
+                const isOrderedList = lines.every(line => /^\d+\.\s/.test(line.trim()));
+
+                // Check for inline image (Markdown style) - legacy support or for external images
+                const imgMatch = paragraph.match(/!\[(.*?)\]\((data:image\/.*?;base64,.*?)\)/);
+                if (imgMatch) {
+                    return (
+                        <div key={`${i}-${j}-${k}`} className="my-3">
+                            <img src={imgMatch[2]} alt={imgMatch[1]} className="max-w-full h-auto rounded border border-gray-600 shadow-lg mx-auto" />
+                            <p className="text-center text-xs text-gray-500 mt-1">{imgMatch[1]}</p>
+                        </div>
+                    );
+                }
+
+                if (isUnorderedList) {
+                    return (
+                        <ul key={`${i}-${j}-${k}`} className="list-disc list-inside space-y-1 my-2 pl-4">
+                            {lines.map((item, l) => <li key={l}>{item.trim().substring(2)}</li>)}
+                        </ul>
+                    );
+                }
+                if (isOrderedList) {
+                     return (
+                        <ol key={`${i}-${j}-${k}`} className="list-decimal list-inside space-y-1 my-2 pl-4">
+                            {lines.map((item, l) => <li key={l}>{item.trim().replace(/^\d+\.\s/, '')}</li>)}
+                        </ol>
+                    );
+                }
+                
+                return <p key={`${i}-${j}-${k}`} className="my-2 whitespace-pre-wrap break-words leading-relaxed">{paragraph}</p>;
+            });
         });
     });
   };

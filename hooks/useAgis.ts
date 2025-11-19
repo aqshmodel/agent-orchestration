@@ -1,6 +1,6 @@
 
 import { useState, useRef, useEffect } from 'react';
-import { Agent, Message } from '../types';
+import { Agent, Message, GraphEvent, Artifact } from '../types';
 import { AGENTS } from '../constants';
 import { generateResponseStream, UploadedFile } from '../services/geminiService';
 import { playStartSound, playNotificationSound, playCompletionSound } from '../services/soundService';
@@ -108,18 +108,14 @@ const ORCHESTRATOR_TOOLS: FunctionDeclaration[] = [
 // Helper to get model configuration based on UI selection
 const getModelConfig = (selection: string) => {
     if (selection === 'gemini-3-pro-preview-high') {
-        // High reasoning capability with larger budget
         return { model: 'gemini-3-pro-preview', thinkingConfig: { thinkingBudget: 32768 } };
     }
     if (selection === 'gemini-3-pro-preview-low') {
-        // Lower budget for faster response
         return { model: 'gemini-3-pro-preview', thinkingConfig: { thinkingBudget: 2048 } };
     }
     if (selection === 'gemini-flash-latest') {
-         // Flash doesn't support thinking config in the same way
          return { model: 'gemini-flash-latest', thinkingConfig: undefined };
     }
-    
     return { model: selection, thinkingConfig: undefined };
 };
 
@@ -137,28 +133,28 @@ export const useAgis = () => {
   const [isErrorLogModalOpen, setIsErrorLogModalOpen] = useState(false);
   const [isKnowledgeBaseOpen, setIsKnowledgeBaseOpen] = useState(false);
   const [isSessionManagerOpen, setIsSessionManagerOpen] = useState(false);
+  const [isGraphModalOpen, setIsGraphModalOpen] = useState(false); 
   const [expandedAgentId, setExpandedAgentId] = useState<string | null>(null);
   const [selectedAgents, setSelectedAgents] = useState<Set<string>>(new Set());
   const [systemStatus, setSystemStatus] = useState<'idle' | 'processing' | 'waiting' | 'completed' | 'error'>('idle');
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState('gemini-3-pro-preview-high');
+  const [graphEvents, setGraphEvents] = useState<GraphEvent[]>([]); 
+  const [artifacts, setArtifacts] = useState<Record<string, Artifact>>({}); // New state for artifacts
   
   const { language, t } = useLanguage();
 
   // Refs
   const conversationHistoryRef = useRef('');
   const sharedKnowledgeBaseRef = useRef('');
-  const processingRef = useRef(false); // To prevent double submission
+  const processingRef = useRef(false);
 
-  // Initialization and Language Change Handling
+  // Initialization
   useEffect(() => {
-     // If empty (first load) OR if only initial message exists and language changed, update it
      const presidentMessages = messages['president'] || [];
-     const isInitialState = presidentMessages.length <= 1; // 0 or 1 message
+     const isInitialState = presidentMessages.length <= 1;
      
      if (isInitialState) {
-         // We assume if length is 1, it's the welcome message. 
-         // If user has started chatting, length > 1, we don't touch history.
          if (presidentMessages.length === 0 || presidentMessages[0].sender === 'agent') {
               setMessages({
                  'president': [{
@@ -171,12 +167,9 @@ export const useAgis = () => {
      }
   }, [language]);
 
-  // Computed
   const contextChars = conversationHistoryRef.current.length + sharedKnowledgeBaseRef.current.length;
   
-  // System Instruction for Language Override
   const getSystemInstruction = (basePrompt: string) => {
-      // Always append the override instruction from translations if it exists (it's empty string for 'ja')
       return basePrompt + t.prompts.systemInstructionOverride;
   };
 
@@ -209,12 +202,10 @@ export const useAgis = () => {
       const lastMsg = agentMessages[agentMessages.length - 1];
       
       if (lastMsg && lastMsg.sender === 'agent' && lastMsg.content !== content) {
-         // Update existing message (streaming)
          const newMessages = [...agentMessages];
          newMessages[newMessages.length - 1] = { ...lastMsg, content };
          return { ...prev, [agentId]: newMessages };
       } else if (!lastMsg || lastMsg.sender !== 'agent') {
-          // New message
           return { ...prev, [agentId]: [...agentMessages, { sender: 'agent', content, timestamp: new Date().toLocaleTimeString() }] };
       }
       return prev; 
@@ -226,6 +217,21 @@ export const useAgis = () => {
           ...prev,
           [agentId]: [...(prev[agentId] || []), message]
       }));
+  };
+  
+  const addGraphEvent = (event: GraphEvent) => {
+      setGraphEvents(prev => [...prev, event]);
+  };
+  
+  const registerArtifacts = (newArtifacts: Artifact[]) => {
+      if (newArtifacts.length === 0) return;
+      setArtifacts(prev => {
+          const next = { ...prev };
+          newArtifacts.forEach(art => {
+              next[art.id] = art;
+          });
+          return next;
+      });
   };
 
   const clearErrorLogs = () => setErrorLogs([]);
@@ -247,6 +253,8 @@ export const useAgis = () => {
       setSelectedAgents(new Set());
       setSystemStatus('idle');
       setCurrentSessionId(null);
+      setGraphEvents([]); 
+      setArtifacts({}); // Reset Artifacts
       conversationHistoryRef.current = '';
       sharedKnowledgeBaseRef.current = '';
       showToast(t.status.reset, 'info');
@@ -275,6 +283,8 @@ export const useAgis = () => {
                 selectedAgents: Array.from(selectedAgents),
                 conversationHistory: conversationHistoryRef.current,
                 sharedKnowledgeBase: sharedKnowledgeBaseRef.current,
+                graphEvents,
+                artifacts, // Save Artifacts
             }
         };
         return sessionData;
@@ -311,13 +321,14 @@ export const useAgis = () => {
             
             const sessionData = JSON.parse(sessionStr);
             
-            // Restore State
             setMessages(sessionData.state.messages);
             setFinalReport(sessionData.state.finalReport);
             setErrorLogs(sessionData.state.errorLogs);
             setSelectedAgents(new Set(sessionData.state.selectedAgents));
             conversationHistoryRef.current = sessionData.state.conversationHistory;
             sharedKnowledgeBaseRef.current = sessionData.state.sharedKnowledgeBase;
+            setGraphEvents(sessionData.state.graphEvents || []);
+            setArtifacts(sessionData.state.artifacts || {}); // Load Artifacts
             
             setCurrentSessionId(id);
             showToast(t.status.sessionLoaded);
@@ -359,7 +370,6 @@ export const useAgis = () => {
     const MAX_LOOPS = 50; 
     let missionComplete = false;
 
-    // Determine model configuration AT THE START of the loop and freeze it for this session
     const { model: activeModel, thinkingConfig: activeThinkingConfig } = getModelConfig(selectedModel);
 
     while (loopCount < MAX_LOOPS && !missionComplete) {
@@ -367,22 +377,7 @@ export const useAgis = () => {
         setCurrentStatus(t.status.orchestratorThinking.replace('{count}', loopCount.toString()));
         setAgentThinking('orchestrator', true);
 
-        // Force the model to output thought text BEFORE using tools
-        // Inject Language override here
-        const enforcedSystemPrompt = getSystemInstruction(orchestrator.systemPrompt) + `
-
-【重要: 行動規範】
-1. **思考の開示 (Mandatory):** ユーザーに対して、現在の状況分析、次の手、その理由を説明する「思考プロセス (Thought)」を**必ず**テキストで出力してください。
-   - 「○○について考える必要がある」「次は××を呼び出す」といった思考の流れを明示してください。
-2. **ツールの使用:** 行動（エージェントの呼び出し、完了報告など）は、**必ず**提供されたツール (Function Calling) を使用して実行してください。
-3. **フォーマット:** 
-   - (1) テキストで思考を記述する。
-   - (2) ツールを呼び出す。
-   - **禁止:** テキストとして 'Action: AGIS_CMD::...' のようなコマンド文字列をそのまま出力することは厳禁です。必ずToolを使用してください。
-
-例:
-"市場分析が必要だと判断しました。アナリストを呼び出します。" -> [Tool: invoke(analyst, ...)]
-`;
+        const enforcedSystemPrompt = getSystemInstruction(orchestrator.systemPrompt) + t.prompts.orchestratorMandatoryRules;
 
         const orchestratorResponse = await generateResponseStream(
             enforcedSystemPrompt, 
@@ -390,17 +385,22 @@ export const useAgis = () => {
             (chunk) => updateAgentLastMessage('orchestrator', chunk),
             conversationHistoryRef.current,
             sharedKnowledgeBaseRef.current,
-            activeModel, // Use active config
+            activeModel,
             false, 
             undefined, 
             ORCHESTRATOR_TOOLS,
-            activeThinkingConfig, // Use active config
-            language // Pass language
+            activeThinkingConfig,
+            language,
+            'orchestrator'
         );
+        
+        // Save any artifacts produced by Orchestrator (unlikely but possible)
+        if (orchestratorResponse.artifacts && orchestratorResponse.artifacts.length > 0) {
+            registerArtifacts(orchestratorResponse.artifacts);
+        }
         
         let responseText = orchestratorResponse.text || '';
         
-        // Cleanup command text from UI and History if any slipped through (hallucination safeguard)
         const cleanedText = responseText
             .replace(/^(?:Action|行動)[:：\s]*AGIS_CMD::[\s\S]*$/im, '')
             .replace(/AGIS_CMD::[\w_]+\s*\([\s\S]*?\)/g, '')
@@ -418,7 +418,6 @@ export const useAgis = () => {
 
         const functionCalls = orchestratorResponse.functionCalls || [];
         
-        // Collect all agent tasks for parallel execution
         const agentTasks: { agent: Agent, query: string }[] = [];
         let isMissionComplete = false;
         let isWaitingForUser = false;
@@ -429,13 +428,15 @@ export const useAgis = () => {
             const args = call.args as any;
             
             if (fnName === 'complete') {
+                // Graph: Orchestrator -> President (Report)
+                addGraphEvent({ from: 'orchestrator', to: 'president', type: 'report', timestamp: Date.now() });
+
                 isMissionComplete = true;
                 missionComplete = true;
                 const finalReportText = args.final_report;
                 
                 setCurrentStatus(t.status.presidentReviewing);
                 
-                // Show review request to President
                 const reviewPrompt = t.prompts.orchestratorReviewRequest.replace('{finalReportText}', finalReportText);
                 addMessage('president', { sender: 'user', content: reviewPrompt, timestamp: new Date().toLocaleTimeString() });
 
@@ -447,13 +448,18 @@ export const useAgis = () => {
                     (chunk) => updateAgentLastMessage('president', chunk),
                     conversationHistoryRef.current,
                     sharedKnowledgeBaseRef.current,
-                    activeModel, // Use active config
+                    activeModel,
                     false,
                     undefined,
                     undefined,
-                    activeThinkingConfig, // Use active config
-                    language // Pass language
+                    activeThinkingConfig,
+                    language,
+                    'president'
                 );
+                
+                if (reviewResponse.artifacts && reviewResponse.artifacts.length > 0) {
+                    registerArtifacts(reviewResponse.artifacts);
+                }
                 
                 setAgentThinking('president', false);
                 const reviewText = reviewResponse.text;
@@ -462,8 +468,11 @@ export const useAgis = () => {
                 if (reviewText.includes('REINSTRUCT::')) {
                         missionComplete = false;
                         currentPrompt = t.prompts.reinstructReceived.replace('{reviewText}', reviewText);
-                        // Show reinstruct order to Orchestrator
                         addMessage('orchestrator', { sender: 'user', content: currentPrompt, timestamp: new Date().toLocaleTimeString() });
+                        
+                        // Graph: President -> Orchestrator (Instruction)
+                        addGraphEvent({ from: 'president', to: 'orchestrator', type: 'instruction', timestamp: Date.now() });
+                        
                         setCurrentStatus(t.status.presidentReinstructing);
                 } else {
                     setFinalReport(reviewText); 
@@ -478,7 +487,6 @@ export const useAgis = () => {
                 setSystemStatus('waiting');
                 playNotificationSound();
                 isWaitingForUser = true;
-                // Exit loop to wait for human interaction
                 return; 
             } else if (['invoke', 'consult', 'review'].includes(fnName)) {
                 let targetAlias = '';
@@ -487,12 +495,23 @@ export const useAgis = () => {
                 if (fnName === 'invoke') {
                     targetAlias = args.agent_alias;
                     query = t.prompts.taskInstruction.replace('{query}', args.query);
+                    
+                    // Graph: Orchestrator -> Agent (Invoke)
+                    addGraphEvent({ from: 'orchestrator', to: targetAlias, type: 'invoke', timestamp: Date.now() });
+
                 } else if (fnName === 'consult') {
                     targetAlias = args.to_alias;
                     query = t.prompts.consultation.replace('{from}', args.from_alias).replace('{query}', args.query);
+                    
+                    // Graph: From -> To (Consult)
+                    addGraphEvent({ from: args.from_alias, to: args.to_alias, type: 'consult', timestamp: Date.now() });
+
                 } else if (fnName === 'review') {
                     targetAlias = args.reviewer_alias;
                     query = t.prompts.reviewRequest.replace('{target}', args.target_alias).replace('{query}', args.query);
+                    
+                    addGraphEvent({ from: 'orchestrator', to: args.reviewer_alias, type: 'invoke', label: 'Review Request', timestamp: Date.now() });
+                    addGraphEvent({ from: args.reviewer_alias, to: args.target_alias, type: 'review', timestamp: Date.now() });
                 }
                 
                 const targetAgent = AGENTS.find(a => a.alias === targetAlias);
@@ -508,6 +527,8 @@ export const useAgis = () => {
                         const targetAgent = AGENTS.find(a => a.alias === inv.agent_alias);
                          if (targetAgent) {
                              agentTasks.push({ agent: targetAgent, query: t.prompts.taskInstruction.replace('{query}', inv.query) });
+                             // Graph: Orchestrator -> Agent (Invoke)
+                             addGraphEvent({ from: 'orchestrator', to: inv.agent_alias, type: 'invoke', timestamp: Date.now() });
                          }
                     });
             } else if (fnName === 'add_member') {
@@ -515,32 +536,33 @@ export const useAgis = () => {
                 if (targetAgent) {
                     setSelectedAgents(prev => new Set(prev).add(targetAgent.id));
                     appendToHistory(`[System] ${targetAgent.name} (${args.agent_alias}) added to team. Reason: ${args.reason}`);
+                    
+                    // Graph: Orchestrator -> Agent (Add)
+                    addGraphEvent({ from: 'orchestrator', to: args.agent_alias, type: 'add_member', label: 'Added', timestamp: Date.now() });
+
+                    const transAgentName = (t.agents as any)[targetAgent.id]?.name || targetAgent.name;
                     const message = language === 'en' 
-                        ? `${targetAgent.name} has joined the team.`
-                        : `${targetAgent.name} がチームに参加しました`;
+                        ? `${transAgentName} has joined the team.`
+                        : `${transAgentName} がチームに参加しました`;
+                        
                     showToast(message, 'info');
                     memberAdded = true;
                 }
             }
         }
 
-        // Execute Agent Tasks in Parallel
         if (agentTasks.length > 0 && !isMissionComplete && !isWaitingForUser) {
-            // Translate agent names for status display if needed, though alias matching usually works
             const agentNames = agentTasks.map(task => {
-                // Attempt to get translated name
-                const transAgent = (t.agents as any)?.[task.agent.id]; // Type safety hack or direct access if possible
+                const transAgent = (t.agents as any)?.[task.agent.id]; 
                 return transAgent ? transAgent.name : task.agent.name; 
             }).join(', ');
             
             setCurrentStatus(t.status.agentsWorking.replace('{names}', agentNames));
 
-            // Show tasks in agent UI
             agentTasks.forEach(task => {
                  addMessage(task.agent.id, { sender: 'user', content: task.query, timestamp: new Date().toLocaleTimeString() });
             });
 
-            // Set thinking state
             setThinkingAgents(prev => {
                 const next = new Set(prev);
                 agentTasks.forEach(task => next.add(task.agent.id));
@@ -549,27 +571,26 @@ export const useAgis = () => {
 
             const results = await Promise.all(agentTasks.map(async (task) => {
                 try {
-                    // CodeExecution is automatically enabled in geminiService
                     const agentResponse = await generateResponseStream(
                         getSystemInstruction(task.agent.systemPrompt),
                         task.query,
                         (chunk) => updateAgentLastMessage(task.agent.id, chunk),
-                        conversationHistoryRef.current, // Snapshot
+                        conversationHistoryRef.current, 
                         sharedKnowledgeBaseRef.current,
-                        activeModel, // Use active config
-                        true, // Use Search if needed (controlled by prop internally but enabled here)
+                        activeModel,
+                        true, 
                         undefined,
                         undefined,
-                        activeThinkingConfig, // Use active config
-                        language // Pass language
+                        activeThinkingConfig,
+                        language,
+                        task.agent.id
                     );
-                    return { agent: task.agent, text: agentResponse.text };
+                    return { agent: task.agent, text: agentResponse.text, artifacts: agentResponse.artifacts };
                 } catch (e) {
                      console.error(`Error executing agent ${task.agent.alias}`, e);
                      const errorMsg = language === 'en' ? "An error occurred." : "エラーが発生しました。";
-                     return { agent: task.agent, text: errorMsg };
+                     return { agent: task.agent, text: errorMsg, artifacts: [] };
                 } finally {
-                    // Stop thinking individually
                     setThinkingAgents(prev => {
                         const next = new Set(prev);
                         next.delete(task.agent.id);
@@ -580,17 +601,24 @@ export const useAgis = () => {
 
             let combinedResults = "";
             for (const res of results) {
-                const { agent, text } = res;
+                const { agent, text, artifacts } = res;
+                
+                if (artifacts && artifacts.length > 0) {
+                    registerArtifacts(artifacts);
+                }
+                
                 appendToHistory(`--- ${agent.name} (${agent.alias}) ---\n${text}`);
                 combinedResults += `--- ${agent.alias} Report ---\n${text}\n\n`;
                 
-                const keyInsightsMatch = text.match(/【キーインサイト】([\s\S]*?)(?:【|$)/);
+                // Extract Key Insights using regex compatible with multi-language headers
+                // Japanese: 【キーインサイト】
+                // English: **Key Insights**, ## Key Insights, Key Insights:
+                const keyInsightsMatch = text.match(/(?:【キーインサイト】|(?:\*\*|##|\[)?\s*Key Insights\s*(?:\*\*|\]|:)?)([\s\S]*?)(?=(?:【|\[Orchestrator|\[Next|AGIS_CMD|REINSTRUCT|オーケストレーターへの提案|Proposals to Orchestrator|\*\*Proposals|$))/i);
                 if (keyInsightsMatch) {
                     sharedKnowledgeBaseRef.current += `\n[${agent.alias}]: ${keyInsightsMatch[1].trim()}\n`;
                 }
             }
 
-            // Add a system message to Orchestrator to indicate progress
             addMessage('orchestrator', { 
                 sender: 'system', 
                 content: t.status.agentsReported, 
@@ -616,7 +644,6 @@ export const useAgis = () => {
         }
     }
 
-    // Loop Limit Check
     if (!missionComplete && !isWaitingForHuman && !isLoading && !processingRef.current) {
         setHumanQuestion(t.status.loopLimit);
         setIsWaitingForHuman(true);
@@ -625,7 +652,6 @@ export const useAgis = () => {
     }
   };
 
-  // Main Logic: Orchestrator Loop
   const handleSendMessage = async (prompt: string, files?: UploadedFile[]) => {
       if (processingRef.current) return;
       processingRef.current = true;
@@ -633,7 +659,6 @@ export const useAgis = () => {
       setSystemStatus('processing');
       playStartSound();
       
-      // Get config based on selected model (High/Low)
       const { model: activeModel, thinkingConfig: activeThinkingConfig } = getModelConfig(selectedModel);
 
       try {
@@ -642,12 +667,14 @@ export const useAgis = () => {
 
         addMessage('president', { sender: 'user', content: prompt, timestamp: new Date().toLocaleTimeString() });
         
+        // Graph: User -> President
+        addGraphEvent({ from: 'User', to: 'president', type: 'invoke', timestamp: Date.now() });
+        
         if (files && files.length > 0) {
              appendToHistory(`[User uploaded ${files.length} files]`);
         }
         appendToHistory(`--- User Request ---\n${prompt}`);
 
-        // 2. President Phase 1: Team selection & Initial Instruction
         setCurrentStatus(t.status.presidentThinking);
         setAgentThinking('president', true);
         
@@ -657,13 +684,18 @@ export const useAgis = () => {
             (chunk) => updateAgentLastMessage('president', chunk),
             conversationHistoryRef.current,
             sharedKnowledgeBaseRef.current,
-            activeModel, // Use active config
+            activeModel, 
             true, 
-            files, // Pass all files (text, pdf, etc.)
+            files,
             undefined,
-            activeThinkingConfig, // Use active config
-            language // Pass language
+            activeThinkingConfig,
+            language,
+            'president'
         );
+        
+        if (presResponse.artifacts && presResponse.artifacts.length > 0) {
+             registerArtifacts(presResponse.artifacts);
+        }
         
         setAgentThinking('president', false);
         const presText = presResponse.text;
@@ -682,8 +714,10 @@ export const useAgis = () => {
 
         const nextPrompt = t.prompts.presidentInstructionReceived + presText;
         
-        // Show initial instruction to Orchestrator
         addMessage('orchestrator', { sender: 'user', content: nextPrompt, timestamp: new Date().toLocaleTimeString() });
+        
+        // Graph: President -> Orchestrator
+        addGraphEvent({ from: 'president', to: 'orchestrator', type: 'invoke', timestamp: Date.now() });
         
         await runOrchestratorLoop(nextPrompt);
 
@@ -708,6 +742,8 @@ export const useAgis = () => {
       setIsWaitingForHuman(false);
       
       appendToHistory(`--- User Answer ---\n${answer}`);
+      // Graph: User -> Orchestrator (Answer)
+      addGraphEvent({ from: 'User', to: 'orchestrator', type: 'invoke', label: 'Answer', timestamp: Date.now() });
       
       if (processingRef.current) return;
       processingRef.current = true;
@@ -715,7 +751,6 @@ export const useAgis = () => {
 
       try {
           const nextPrompt = t.prompts.userAnswerReceived.replace('{answer}', answer);
-          // Show user answer to Orchestrator
           addMessage('orchestrator', { sender: 'user', content: nextPrompt, timestamp: new Date().toLocaleTimeString() });
           await runOrchestratorLoop(nextPrompt);
       } catch (error: any) {
@@ -735,7 +770,6 @@ export const useAgis = () => {
   };
 
   return {
-    // State
     messages,
     isLoading,
     thinkingAgents,
@@ -748,6 +782,7 @@ export const useAgis = () => {
     isErrorLogModalOpen,
     isKnowledgeBaseOpen,
     isSessionManagerOpen,
+    isGraphModalOpen, 
     expandedAgentId,
     selectedAgents,
     systemStatus,
@@ -755,8 +790,9 @@ export const useAgis = () => {
     currentSessionId,
     sharedKnowledgeBaseContent: sharedKnowledgeBaseRef.current,
     selectedModel,
+    graphEvents,
+    artifacts, // Export artifacts to consumers
 
-    // Actions
     handleSendMessage,
     handleHumanResponse,
     handleResetAll,
@@ -771,6 +807,7 @@ export const useAgis = () => {
     setIsErrorLogModalOpen,
     setIsKnowledgeBaseOpen,
     setIsSessionManagerOpen,
+    setIsGraphModalOpen,
     setSelectedModel,
   };
 };
