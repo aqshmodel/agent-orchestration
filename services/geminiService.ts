@@ -1,7 +1,9 @@
 
+
 import { GoogleGenAI, FunctionDeclaration, Tool, FunctionCall, Part, Modality } from "@google/genai";
 import { translations } from "../locales/translations";
-import { Artifact } from "../types";
+import { Artifact, FileData } from "../types";
+import { getModelConfig } from "../config/models";
 
 const API_KEY = process.env.API_KEY;
 
@@ -11,13 +13,7 @@ if (!API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-// Helper type for our internal processing
-export interface UploadedFile {
-    name: string;
-    type: string;
-    data: string; // Base64
-    isText: boolean;
-}
+export type { FileData as UploadedFile };
 
 // エラータイプの定義
 export enum GeminiErrorType {
@@ -30,17 +26,17 @@ export enum GeminiErrorType {
 
 export class GeminiError extends Error {
   type: GeminiErrorType;
-  originalError: any;
+  originalError: unknown;
 
-  constructor(type: GeminiErrorType, message: string, originalError: any) {
+  constructor(type: GeminiErrorType, message: string, originalError: unknown) {
     super(message);
     this.type = type;
     this.originalError = originalError;
   }
 }
 
-const classifyError = (error: any): GeminiError => {
-  const msg = error.message || String(error);
+const classifyError = (error: unknown): GeminiError => {
+  const msg = error instanceof Error ? error.message : String(error);
   let type = GeminiErrorType.UNKNOWN;
 
   if (msg.includes('429') || msg.includes('Resource has been exhausted')) {
@@ -59,11 +55,11 @@ const classifyError = (error: any): GeminiError => {
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const retryOperation = async <T>(operation: () => Promise<T>, maxRetries: number = 3, initialDelay: number = 1000): Promise<T> => {
-  let lastError: any;
+  let lastError: unknown;
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await operation();
-    } catch (error: any) {
+    } catch (error: unknown) {
       lastError = error;
       const classifiedError = classifyError(error);
       
@@ -82,7 +78,7 @@ const retryOperation = async <T>(operation: () => Promise<T>, maxRetries: number
   throw classifyError(lastError);
 };
 
-const buildContents = (prompt: string, context?: string, knowledgeBase?: string, files?: UploadedFile[], language: 'ja' | 'en' = 'ja') => {
+const buildContents = (prompt: string, context?: string, knowledgeBase?: string, files?: FileData[], language: 'ja' | 'en' = 'ja') => {
   let fullPrompt = '';
   const t = translations[language].context;
 
@@ -227,7 +223,7 @@ export const generateResponseStream = async (
   knowledgeBase?: string,
   modelName: string = 'gemini-3-pro-preview',
   useSearch: boolean = false,
-  files?: UploadedFile[],
+  files?: FileData[],
   tools?: FunctionDeclaration[],
   thinkingConfig?: { thinkingBudget?: number, includeThoughts?: boolean },
   language: 'ja' | 'en' = 'ja',
@@ -238,8 +234,9 @@ export const generateResponseStream = async (
     
     const configTools: Tool[] = [];
     
-    // Check if model is a "Flash" variant
-    const isFlashModel = modelName.toLowerCase().includes('flash');
+    // Get Model Characteristics
+    const modelConfig = getModelConfig(modelName);
+    const supportsMixedTools = modelConfig.supportsMixedTools;
     
     if (useSearch) {
         // If search is enabled, add Google Search tool
@@ -247,7 +244,7 @@ export const generateResponseStream = async (
         
         // Flash models strictly enforce exclusive usage of Search tool.
         // Pro models (2.5-pro, 3-pro) tolerate mixing Search with other tools.
-        if (!isFlashModel) {
+        if (supportsMixedTools) {
              configTools.push({ codeExecution: {} });
              if (tools && tools.length > 0) {
                  configTools.push({ functionDeclarations: tools });
@@ -258,8 +255,7 @@ export const generateResponseStream = async (
         
         // For Flash models, if Function Declarations (tools) are present,
         // we prioritize them and disable Code Execution to prevent tool conflict/looping issues.
-        // This specifically targets the Orchestrator when running on Flash.
-        if (isFlashModel && tools && tools.length > 0) {
+        if (!supportsMixedTools && tools && tools.length > 0) {
              configTools.push({ functionDeclarations: tools });
         } else {
              // Default behavior: Code Execution + Tools (if any)
@@ -314,7 +310,7 @@ export const generateResponseStream = async (
               if (part.codeExecutionResult) {
                    const outcome = part.codeExecutionResult.outcome; // OUTCOME_OK, etc.
                    const output = part.codeExecutionResult.output || "";
-                   let resultBlock = `\n\`\`\`text\n[Execution Result: ${outcome}]\n${output}\n\`\`\`\n`;
+                   const resultBlock = `\n\`\`\`text\n[Execution Result: ${outcome}]\n${output}\n\`\`\`\n`;
                    fullText += resultBlock;
                    onChunk(fullText);
               }

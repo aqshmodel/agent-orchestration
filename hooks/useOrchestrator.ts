@@ -1,4 +1,5 @@
 
+
 import { Agent } from '../types';
 import { AGENTS } from '../constants';
 import { generateResponseStream } from '../services/geminiService';
@@ -9,18 +10,6 @@ import { ORCHESTRATOR_TOOLS } from '../config/tools';
 import { getModelConfig } from '../config/models';
 import { processToolCalls } from '../services/orchestratorTools';
 import { executePresidentReview } from '../services/presidentOperations';
-
-// Web検索権限を持つエージェントIDのリスト (Tier 1 & Tier 2)
-const SEARCH_ENABLED_AGENTS = new Set([
-    'A1',  // Analyst
-    'A11', // Forecast
-    'A5',  // Tech
-    'A2',  // Ethno
-    'A6',  // Risk
-    'A12', // Legal
-    'C4',  // Public Affairs
-    'A17'  // PR
-]);
 
 export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
     const { t, language } = useLanguage();
@@ -39,8 +28,8 @@ export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
         const MAX_LOOPS = 50; 
         let missionComplete = false;
 
-        const { model: activeModel, thinkingConfig: activeThinkingConfig } = getModelConfig(state.selectedModel);
-        const modelConfig = { model: activeModel, thinkingConfig: activeThinkingConfig };
+        const modelConfig = getModelConfig(state.selectedModel);
+        const { model: activeModel, thinkingConfig: activeThinkingConfig } = modelConfig;
 
         while (loopCount < MAX_LOOPS && !missionComplete) {
             loopCount++;
@@ -148,8 +137,8 @@ export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
 
                 const results = await Promise.all(toolResult.agentTasks.map(async (task) => {
                     try {
-                        // Check if this agent is authorized to use Web Search
-                        const canSearch = SEARCH_ENABLED_AGENTS.has(task.agent.id);
+                        // Check if this agent is authorized to use Web Search based on capabilities
+                        const canSearch = task.agent.capabilities?.includes('search') || false;
                         
                         const agentResponse = await generateResponseStream(
                             getSystemInstruction(task.agent.systemPrompt),

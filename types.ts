@@ -22,6 +22,7 @@ export interface Agent {
   role: string;
   team: Team;
   systemPrompt: string;
+  capabilities?: ('search' | 'code_execution')[];
 }
 
 export interface Message {
@@ -46,6 +47,13 @@ export interface Artifact {
   description?: string;
   agentId: string;
   timestamp: number;
+}
+
+export interface FileData {
+  name: string;
+  type: string;
+  data: string; // Base64 or Text content
+  isText: boolean;
 }
 
 declare global {

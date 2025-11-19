@@ -1,4 +1,5 @@
 
+
 import { Agent, Team } from './types';
 import { AGENT_PROMPTS } from './prompts/agentPrompts';
 
@@ -20,16 +21,16 @@ export const AGENTS: Agent[] = [
     systemPrompt: AGENT_PROMPTS['orchestrator'],
   },
   // --- Team 1: Strategic Planning (戦略計画チーム) ---
-  { id: 'A1', name: 'マーケット・アナリスト', alias: 'analyst', role: '市場分析官', team: Team.STRATEGY_PLANNING, systemPrompt: AGENT_PROMPTS['A1'] },
+  { id: 'A1', name: 'マーケット・アナリスト', alias: 'analyst', role: '市場分析官', team: Team.STRATEGY_PLANNING, systemPrompt: AGENT_PROMPTS['A1'], capabilities: ['search', 'code_execution'] },
   { id: 'A7', name: 'ビジネス・ストラテジスト', alias: 'biz', role: '事業戦略家', team: Team.STRATEGY_PLANNING, systemPrompt: AGENT_PROMPTS['A7'] },
-  { id: 'A11', name: 'トレンド・フォーキャスター', alias: 'forecast', role: '未来予測アナリスト', team: Team.STRATEGY_PLANNING, systemPrompt: AGENT_PROMPTS['A11'] },
+  { id: 'A11', name: 'トレンド・フォーキャスター', alias: 'forecast', role: '未来予測アナリスト', team: Team.STRATEGY_PLANNING, systemPrompt: AGENT_PROMPTS['A11'], capabilities: ['search'] },
   { id: 'B4', name: '経営企画ストラテジスト', alias: 'corp_strategy', role: '全社戦略立案担当', team: Team.STRATEGY_PLANNING, systemPrompt: AGENT_PROMPTS['B4'] },
   { id: 'B13', name: '財務アナリスト', alias: 'financial_analyst', role: '財務分析担当', team: Team.STRATEGY_PLANNING, systemPrompt: AGENT_PROMPTS['B13'] },
   { id: 'C5', name: 'エコノミック・システム・デザイナー', alias: 'economic_sys', role: '経済圏設計者', team: Team.STRATEGY_PLANNING, systemPrompt: AGENT_PROMPTS['C5'] },
 
   // --- Team 2: Insight & Culture (インサイト＆カルチャーチーム) ---
-  { id: 'A2', name: 'ユーザー・エスノグラファー', alias: 'ethno', role: 'ユーザー洞察専門家', team: Team.INSIGHT_CULTURE, systemPrompt: AGENT_PROMPTS['A2'] },
-  { id: 'A10', name: 'データ・ビジュアライザー', alias: 'viz', role: 'データ可視化担当', team: Team.INSIGHT_CULTURE, systemPrompt: AGENT_PROMPTS['A10'] },
+  { id: 'A2', name: 'ユーザー・エスノグラファー', alias: 'ethno', role: 'ユーザー洞察専門家', team: Team.INSIGHT_CULTURE, systemPrompt: AGENT_PROMPTS['A2'], capabilities: ['search'] },
+  { id: 'A10', name: 'データ・ビジュアライザー', alias: 'viz', role: 'データ可視化担当', team: Team.INSIGHT_CULTURE, systemPrompt: AGENT_PROMPTS['A10'], capabilities: ['code_execution'] },
   { id: 'A26', name: '行動心理学者', alias: 'psychologist', role: '行動心理分析官', team: Team.INSIGHT_CULTURE, systemPrompt: AGENT_PROMPTS['A26'] },
   { id: 'A29', name: 'AI倫理スペシャリスト', alias: 'ai_ethics', role: 'AI倫理監査官', team: Team.INSIGHT_CULTURE, systemPrompt: AGENT_PROMPTS['A29'] },
   { id: 'B22', name: '組織文化デザイナー', alias: 'org_culture', role: '組織文化醸成担当', team: Team.INSIGHT_CULTURE, systemPrompt: AGENT_PROMPTS['B22'] },
@@ -44,7 +45,7 @@ export const AGENTS: Agent[] = [
   { id: 'A28', name: 'サウンド・デザイナー', alias: 'sound', role: '聴覚体験設計者', team: Team.PRODUCT_DESIGN, systemPrompt: AGENT_PROMPTS['A28'] },
 
   // --- Team 4: Advanced Development (アドバンスト開発チーム) ---
-  { id: 'A5', name: 'テック・フィジビリティ・チェッカー', alias: 'tech', role: '技術実現性評価者', team: Team.ADVANCED_DEV, systemPrompt: AGENT_PROMPTS['A5'] },
+  { id: 'A5', name: 'テック・フィジビリティ・チェッカー', alias: 'tech', role: '技術実現性評価者', team: Team.ADVANCED_DEV, systemPrompt: AGENT_PROMPTS['A5'], capabilities: ['search', 'code_execution'] },
   { id: 'A15', name: 'QA & エシックス・エンジニア', alias: 'qa', role: '品質・倫理監査官', team: Team.ADVANCED_DEV, systemPrompt: AGENT_PROMPTS['A15'] },
   { id: 'A25', name: 'インターナショナリゼーション・スペシャリスト', alias: 'i18n', role: '国際化対応専門家', team: Team.ADVANCED_DEV, systemPrompt: AGENT_PROMPTS['A25'] },
   { id: 'A27', name: 'クリエイティブ・テクノロジスト', alias: 'creative_tech', role: '先端技術体験開発者', team: Team.ADVANCED_DEV, systemPrompt: AGENT_PROMPTS['A27'] },
@@ -60,8 +61,8 @@ export const AGENTS: Agent[] = [
   { id: 'B28', name: 'オフィス・マネージャー', alias: 'office_manager', role: 'ファシリティ管理担当', team: Team.OPS_INFRA, systemPrompt: AGENT_PROMPTS['B28'] },
 
   // --- Team 6: Security & Governance (セキュリティ＆ガバナンスチーム) ---
-  { id: 'A6', name: 'リスク・アセッサー', alias: 'risk', role: 'リスク評価官', team: Team.SECURITY_GOV, systemPrompt: AGENT_PROMPTS['A6'] },
-  { id: 'A12', name: 'リーガル・アドバイザー', alias: 'legal', role: '法務・コンプライアンス担当', team: Team.SECURITY_GOV, systemPrompt: AGENT_PROMPTS['A12'] },
+  { id: 'A6', name: 'リスク・アセッサー', alias: 'risk', role: 'リスク評価官', team: Team.SECURITY_GOV, systemPrompt: AGENT_PROMPTS['A6'], capabilities: ['search'] },
+  { id: 'A12', name: 'リーガル・アドバイザー', alias: 'legal', role: '法務・コンプライアンス担当', team: Team.SECURITY_GOV, systemPrompt: AGENT_PROMPTS['A12'], capabilities: ['search'] },
   { id: 'A13', name: 'セキュリティ・アーキテクト', alias: 'security', role: '情報セキュリティ専門家', team: Team.SECURITY_GOV, systemPrompt: AGENT_PROMPTS['A13'] },
   { id: 'B3', name: 'CCO（最高コンプライアンス責任者）AI', alias: 'cco_ai', role: '最高コンプライアンス責任者', team: Team.SECURITY_GOV, systemPrompt: AGENT_PROMPTS['B3'] },
   { id: 'B5', name: '内部監査スペシャリスト', alias: 'audit', role: '内部統制評価担当', team: Team.SECURITY_GOV, systemPrompt: AGENT_PROMPTS['B5'] },
@@ -84,12 +85,12 @@ export const AGENTS: Agent[] = [
   { id: 'B11', name: 'チャネル・パートナー・マネージャー', alias: 'channel_manager', role: '代理店担当', team: Team.SALES, systemPrompt: AGENT_PROMPTS['B11'] },
 
   // --- Team 9: Relations & Assets (渉外・広報チーム) ---
-  { id: 'A17', name: 'PR & メディア・リレーションズ', alias: 'pr', role: '広報・メディア担当', team: Team.RELATIONS_ASSETS, systemPrompt: AGENT_PROMPTS['A17'] },
+  { id: 'A17', name: 'PR & メディア・リレーションズ', alias: 'pr', role: '広報・メディア担当', team: Team.RELATIONS_ASSETS, systemPrompt: AGENT_PROMPTS['A17'], capabilities: ['search'] },
   { id: 'B6', name: 'IR（投資家向け広報）スペシャリスト', alias: 'ir', role: '投資家向け広報担当', team: Team.RELATIONS_ASSETS, systemPrompt: AGENT_PROMPTS['B6'] },
   { id: 'B17', name: '知的財産（IP）ストラテジスト', alias: 'ip_strategist', role: '知的財産戦略担当', team: Team.RELATIONS_ASSETS, systemPrompt: AGENT_PROMPTS['B17'] },
   { id: 'B24', name: '危機管理広報マネージャー', alias: 'crisis_comms', role: '危機管理広報担当', team: Team.RELATIONS_ASSETS, systemPrompt: AGENT_PROMPTS['B24'] },
   { id: 'B30', name: 'イベント・プランナー', alias: 'event_planner', role: 'イベント企画・実行担当', team: Team.RELATIONS_ASSETS, systemPrompt: AGENT_PROMPTS['B30'] },
-  { id: 'C4', name: 'パブリック・アフェアーズ', alias: 'public_affairs', role: '公共政策・ロビイング担当', team: Team.RELATIONS_ASSETS, systemPrompt: AGENT_PROMPTS['C4'] },
+  { id: 'C4', name: 'パブリック・アフェアーズ', alias: 'public_affairs', role: '公共政策・ロビイング担当', team: Team.RELATIONS_ASSETS, systemPrompt: AGENT_PROMPTS['C4'], capabilities: ['search'] },
 
   // --- Team 10: Finance & SCM (財務・SCMチーム) ---
   { id: 'B1', name: 'CFO（最高財務責任者）AI', alias: 'cfo_ai', role: '最高財務責任者', team: Team.FINANCE_SCM, systemPrompt: AGENT_PROMPTS['B1'] },

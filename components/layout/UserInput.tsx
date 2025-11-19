@@ -1,21 +1,9 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAgis } from '../../hooks/useAgis';
-
-export interface FileData {
-  name: string;
-  type: string;
-  data: string; // Base64 or Text content
-  isText: boolean;
-}
-
-// Web Speech API Type Definitions
-declare global {
-  interface Window {
-    webkitSpeechRecognition: any;
-    SpeechRecognition: any;
-  }
-}
+import { useFileHandler } from '../../hooks/useFileHandler';
+import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
 
 const UserInput: React.FC = () => {
   const {
@@ -26,19 +14,28 @@ const UserInput: React.FC = () => {
       isLoading,
       isWaitingForHuman,
       currentStatus,
-      showToast // Add showToast from context
+      showToast
   } = useAgis();
   
   const [prompt, setPrompt] = useState('');
   const [isComposing, setIsComposing] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState<FileData[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<any>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { t, language } = useLanguage();
+
+  // Custom Hooks
+  const { selectedFiles, setSelectedFiles, fileInputRef, handleFileSelect, handleRemoveFile } = useFileHandler();
+  
+  const onSpeechResult = (text: string) => {
+      setPrompt(prev => prev + (prev ? ' ' : '') + text);
+  };
+  
+  const onSpeechError = (msg: string) => {
+      showToast(msg, 'error');
+  };
+  
+  const { isListening, toggleListening, recognitionSupported } = useSpeechRecognition(onSpeechResult, onSpeechError);
 
   const isInputLoading = isLoading || isWaitingForHuman;
 
@@ -60,123 +57,6 @@ const UserInput: React.FC = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [menuRef]);
-
-  // Speech Recognition Setup
-  useEffect(() => {
-      if (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)) {
-          const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-          recognitionRef.current = new SpeechRecognition();
-          recognitionRef.current.continuous = false; // Stop after one sentence/utterance
-          recognitionRef.current.interimResults = true;
-          recognitionRef.current.lang = language === 'en' ? 'en-US' : 'ja-JP';
-
-          recognitionRef.current.onresult = (event: any) => {
-              let interimTranscript = '';
-              let finalTranscript = '';
-
-              for (let i = event.resultIndex; i < event.results.length; ++i) {
-                  if (event.results[i].isFinal) {
-                      finalTranscript += event.results[i][0].transcript;
-                  } else {
-                      interimTranscript += event.results[i][0].transcript;
-                  }
-              }
-              
-              if (finalTranscript) {
-                  setPrompt(prev => prev + (prev ? ' ' : '') + finalTranscript);
-                  setIsListening(false);
-              }
-          };
-
-          recognitionRef.current.onerror = (event: any) => {
-              console.error('Speech recognition error', event.error);
-              setIsListening(false);
-              
-              if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-                  showToast(
-                      language === 'en' 
-                          ? "Microphone access denied. Please check your browser settings." 
-                          : "マイクのアクセスが拒否されました。ブラウザの設定を確認してください。", 
-                      "error"
-                  );
-              } else if (event.error === 'no-speech') {
-                   // No speech detected, just stop silently or with a mild info
-                   // showToast(language === 'en' ? "No speech detected." : "音声が検出されませんでした。", "info");
-              } else {
-                   showToast(
-                      language === 'en' 
-                          ? `Speech recognition error: ${event.error}` 
-                          : `音声認識エラー: ${event.error}`, 
-                      "error"
-                  );
-              }
-          };
-          
-          recognitionRef.current.onend = () => {
-              setIsListening(false);
-          };
-      }
-  }, [language, showToast]);
-
-  const toggleListening = () => {
-      if (isListening) {
-          recognitionRef.current?.stop();
-      } else {
-          try {
-            recognitionRef.current?.start();
-            setIsListening(true);
-          } catch (e) {
-            console.error("Failed to start recognition", e);
-            setIsListening(false);
-          }
-      }
-  };
-
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newFiles: FileData[] = [];
-      for (let i = 0; i < e.target.files.length; i++) {
-        const file = e.target.files[i];
-        const isText = 
-            file.type.startsWith('text/') || 
-            file.name.endsWith('.md') || 
-            file.name.endsWith('.json') || 
-            file.name.endsWith('.csv') || 
-            file.name.endsWith('.ts') || 
-            file.name.endsWith('.tsx') || 
-            file.name.endsWith('.js') || 
-            file.name.endsWith('.py');
-        
-        try {
-          const data = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            if (isText) {
-              reader.readAsText(file);
-            } else {
-              reader.readAsDataURL(file);
-            }
-          });
-          
-          newFiles.push({
-            name: file.name,
-            type: file.type,
-            data: data,
-            isText: isText
-          });
-        } catch (error) {
-          console.error("File read error:", error);
-        }
-      }
-      setSelectedFiles(prev => [...prev, ...newFiles]);
-    }
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const handleRemoveFile = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -257,7 +137,7 @@ const UserInput: React.FC = () => {
             <button
                 type="button"
                 onClick={toggleListening}
-                disabled={isInputLoading || !recognitionRef.current}
+                disabled={isInputLoading || !recognitionSupported}
                 className={`p-2 rounded-xl flex-shrink-0 transition-colors ${isListening ? 'text-red-500 animate-pulse bg-red-900/20' : 'text-gray-400 hover:text-cyan-400 hover:bg-gray-800/50'}`}
                 title={isListening ? t.input.listening : t.input.mic}
             >
