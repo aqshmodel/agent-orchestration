@@ -1,16 +1,13 @@
 
-
 import { Artifact } from "../types";
 
 declare const marked: any;
 
 // Helper to strip HTML tags for text/markdown export
 export const stripHtml = (html: string): string => {
-    // Create a temporary DOM element to parse HTML
     const tempDiv = document.createElement("div");
     tempDiv.innerHTML = html;
     
-    // Pre-process: replace block tags with newlines to preserve structure
     let processedHtml = html
         .replace(/<\/p>/gi, '\n\n')
         .replace(/<br\s*\/?>/gi, '\n')
@@ -22,20 +19,18 @@ export const stripHtml = (html: string): string => {
     
     const rawText = tempDiv.textContent || tempDiv.innerText || "";
     
-    // Post-process: Trim each line and collapse multiple newlines
     return rawText
         .split('\n')
-        .map(line => line.trim()) // Remove leading/trailing whitespace from each line (fixes weird indentation)
-        .filter(line => line !== '') // Remove empty lines temporarily
-        .join('\n') // Join back
-        .replace(/\n{3,}/g, '\n\n'); // Max 2 newlines
+        .map(line => line.trim())
+        .filter(line => line !== '')
+        .join('\n')
+        .replace(/\n{3,}/g, '\n\n');
 };
 
 // Helper to convert HTML structure to Markdown-like text
 export const htmlToMarkdown = (html: string): string => {
     let text = html;
     
-    // Remove head, script, style, doctype
     text = text.replace(/<!DOCTYPE html>/gi, '');
     text = text.replace(/<html>/gi, '');
     text = text.replace(/<\/html>/gi, '');
@@ -45,53 +40,44 @@ export const htmlToMarkdown = (html: string): string => {
     text = text.replace(/<script[\s\S]*?<\/script>/gi, '');
     text = text.replace(/<style[\s\S]*?<\/style>/gi, '');
     
-    // Headings
     text = text.replace(/<h1[^>]*>(.*?)<\/h1>/gi, '\n# $1\n\n');
     text = text.replace(/<h2[^>]*>(.*?)<\/h2>/gi, '\n## $1\n\n');
     text = text.replace(/<h3[^>]*>(.*?)<\/h3>/gi, '\n### $1\n\n');
     text = text.replace(/<h4[^>]*>(.*?)<\/h4>/gi, '\n#### $1\n\n');
     
-    // Lists
     text = text.replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n');
     text = text.replace(/<ul[^>]*>/gi, '\n');
     text = text.replace(/<\/ul>/gi, '\n');
     text = text.replace(/<ol[^>]*>/gi, '\n');
     text = text.replace(/<\/ol>/gi, '\n');
     
-    // Paragraphs and Breaks
     text = text.replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n');
     text = text.replace(/<br\s*\/?>/gi, '\n');
     text = text.replace(/<hr\s*\/?>/gi, '\n---\n');
     
-    // Formatting
     text = text.replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**');
     text = text.replace(/<b[^>]*>(.*?)<\/b>/gi, '**$1**');
     text = text.replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*');
     text = text.replace(/<i[^>]*>(.*?)<\/i>/gi, '*$1*');
     
-    // Links & Images
     text = text.replace(/<a[^>]+href="([^"]+)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)');
     text = text.replace(/<img[^>]+alt="([^"]*)"[^>]+src="([^"]+)"[^>]*>/gi, '![ $1 ]( $2 )');
 
-    // Remove all other tags
     text = text.replace(/<[^>]+>/g, '');
     
-    // Decode entities
     const textarea = document.createElement('textarea');
     textarea.innerHTML = text;
     text = textarea.value;
 
-    // Final Cleanup: Trim every line to remove HTML source indentation
     return text
         .split('\n')
         .map(line => line.trim())
         .join('\n')
-        .replace(/\n{3,}/g, '\n\n') // Normalize spacing
+        .replace(/\n{3,}/g, '\n\n')
         .trim();
 };
 
 export const generateHtmlReport = (markdownContent: string, title: string = 'A.G.I.S. Strategic Report', language: 'ja' | 'en' = 'ja', artifacts?: Record<string, Artifact>): string => {
-  // If content is already a full HTML document, return it as is (with artifact injection)
   if (markdownContent.trim().match(/^<!DOCTYPE html>|^<html/i)) {
       let processedHtml = markdownContent;
       if (artifacts) {
@@ -109,7 +95,6 @@ export const generateHtmlReport = (markdownContent: string, title: string = 'A.G
       return processedHtml;
   }
 
-  // HTML Template for Markdown conversion
   const locale = language === 'en' ? 'en-US' : 'ja-JP';
   const date = new Date().toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
   const tocTitle = language === 'en' ? 'Table of Contents' : '目次';
@@ -248,66 +233,59 @@ export const generateHtmlReport = (markdownContent: string, title: string = 'A.G
 };
 
 /**
- * Generates an HTML string that can be converted to Word (old method, deprecated for Mac compatibility).
- * Kept for internal logic, but exposed for conversion.
+ * Internal helper to extract and sanitize body content for Word generation.
+ * Ensures we get the actual content even from full HTML documents.
  */
-export const generateWordDocHtml = (content: string, title: string = 'A.G.I.S. Report', language: 'ja' | 'en' = 'ja'): string => {
+const extractCleanBodyContent = (content: string): string => {
     const isHtml = content.trim().match(/^<!DOCTYPE html>|^<html/i);
     let bodyContent = "";
 
-    // 1. PREPARE CONTENT
-    // If it's Markdown, parse it to HTML first to get clean structure
     if (!isHtml) {
+        // If Markdown, parse to HTML first
         if (typeof marked !== 'undefined') {
             const renderer = new marked.Renderer();
-            // Handle Images for Word
             renderer.image = (href: string, title: string, text: string) => {
-                 // Word can handle Base64 images in MHTML, but large ones might crash it. 
-                 // We'll keep them but limit style.
                  return `<img src="${href}" alt="${text}" width="500" style="max-width:100%; height:auto;" />`;
             };
-            // Handle Mermaid blocks (text placeholder)
             renderer.code = (code: string, lang: string) => {
                 if(lang === 'mermaid') return `<div style="padding:10px; border:1px solid #ccc; background:#f9f9f9; color:#666; font-family:monospace;">[Diagram: ${code.substring(0,30)}...] (See Web Report)</div>`;
                 return `<pre style="background:#f0f0f0; padding:10px;">${code}</pre>`;
             };
-
             try {
                 bodyContent = marked.parse(content, { renderer });
             } catch (e) {
                 bodyContent = `<pre>${content}</pre>`;
             }
         } else {
-            // Fallback
             bodyContent = `<pre>${content}</pre>`;
         }
     } else {
-        // If it IS HTML (e.g. President's final report), we need to sanitize it for Word
-        // Remove scripts, styles, SVG (often breaks Word), and extract BODY content
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = content;
+        // If HTML, use DOMParser to safely extract body content
+        // DOMParser is safer than innerHTML injection and handles full docs
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(content, 'text/html');
         
-        // Remove scripts and styles that cause Word errors
-        const scripts = tempDiv.getElementsByTagName('script');
-        while(scripts.length > 0) scripts[0].parentNode?.removeChild(scripts[0]);
+        // Remove elements that break Word or are unnecessary
+        const elementsToRemove = doc.querySelectorAll('script, style, nav, header, footer, button, iframe, .no-print');
+        elementsToRemove.forEach(el => el.remove());
         
-        const styles = tempDiv.getElementsByTagName('style');
-        while(styles.length > 0) styles[0].parentNode?.removeChild(styles[0]);
+        // Try to find the main content container first
+        const main = doc.querySelector('main') || doc.querySelector('article') || doc.querySelector('body');
         
-        const navs = tempDiv.getElementsByTagName('nav'); // Remove TOC/Navs
-        while(navs.length > 0) navs[0].parentNode?.removeChild(navs[0]);
-
-        // Attempt to find the main content container if possible, otherwise take body
-        const main = tempDiv.querySelector('main') || tempDiv.querySelector('article') || tempDiv.querySelector('body') || tempDiv;
-        
-        bodyContent = main.innerHTML;
+        if (main) {
+            // Fix images for Word (Base64 needs correct styling or it might be huge)
+            main.querySelectorAll('img').forEach(img => {
+                img.setAttribute('width', '500');
+                img.style.maxWidth = '100%';
+                img.style.height = 'auto';
+            });
+            bodyContent = main.innerHTML;
+        } else {
+            bodyContent = "Error: Could not extract content.";
+        }
     }
 
-    // 2. CLEANUP & FIXES for WORD
-    // Fix Image Tags for Word (ensure style doesn't break layout)
-    bodyContent = bodyContent.replace(/<img([^>]*)>/gi, '<img$1 width="500" style="max-width:100%; height:auto;">');
-    
-    // Replace Artifact Placeholders specific regex
+    // Final regex cleanup for custom tags
     bodyContent = bodyContent.replace(/<FIGURE\s+ID="([^"]+)"\s+DESC="([^"]*)"\s*\/>/g, 
         `<div style="padding: 10px; border: 1px dashed #999; background: #f0f0f0; text-align: center; margin: 10px 0;">[Figure: $2]</div>`
     );
@@ -315,51 +293,36 @@ export const generateWordDocHtml = (content: string, title: string = 'A.G.I.S. R
         `<div style="padding: 10px; border: 1px dashed #999; background: #f0f0f0; text-align: center; margin: 10px 0;">[Image: $2]</div>`
     );
 
+    return bodyContent;
+};
+
+/**
+ * Generates MHTML (MIME HTML) format for .doc extension.
+ * This is a fallback method.
+ */
+export const generateWordDocHtml = (content: string, title: string = 'A.G.I.S. Report', language: 'ja' | 'en' = 'ja'): string => {
+    const bodyContent = extractCleanBodyContent(content);
     const locale = language === 'en' ? 'en-US' : 'ja-JP';
     const dateStr = new Date().toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
 
-    // 3. CONSTRUCT OFFICE-COMPATIBLE HTML (MHTML style)
+    // Microsoft Office MHTML structure
     return `
 <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
 <head>
     <meta charset="utf-8">
     <title>${title}</title>
     <style>
-        /* Basic Reset & Typography for Word */
-        body {
-            font-family: 'Yu Gothic', 'Meiryo', 'Segoe UI', sans-serif;
-            font-size: 11pt;
-            line-height: 1.5;
-            color: #000000;
-        }
-        
-        /* Headings */
+        body { font-family: 'Yu Gothic', 'Meiryo', 'Segoe UI', sans-serif; font-size: 11pt; line-height: 1.5; color: #000000; }
         h1 { font-size: 24pt; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px; margin-top: 20px; }
         h2 { font-size: 18pt; color: #2c3e50; margin-top: 15px; margin-bottom: 10px; }
         h3 { font-size: 14pt; color: #34495e; margin-top: 10px; font-weight: bold; }
-        
-        /* Layout */
         p { margin-bottom: 10px; text-align: justify; }
-        ul, ol { margin-bottom: 10px; }
-        li { margin-bottom: 5px; }
-        
-        /* Tables */
         table { border-collapse: collapse; width: 100%; margin-bottom: 15px; }
         th { background-color: #f2f2f2; border: 1px solid #000; padding: 8px; font-weight: bold; }
         td { border: 1px solid #000; padding: 8px; }
-        
-        /* Code */
         pre { background-color: #f5f5f5; padding: 10px; border: 1px solid #ccc; font-family: monospace; font-size: 9pt; }
-        
-        /* Links */
         a { color: #0563c1; text-decoration: underline; }
-
-        /* Page Setup (A4) */
-        @page {
-            size: 21cm 29.7cm;
-            margin: 2.54cm;
-            mso-page-orientation: portrait;
-        }
+        @page { size: 21cm 29.7cm; margin: 2.54cm; mso-page-orientation: portrait; }
     </style>
 </head>
 <body>
@@ -379,22 +342,48 @@ export const generateWordDocHtml = (content: string, title: string = 'A.G.I.S. R
 </html>`;
 };
 
-// Compatibility wrapper: Keeps the name generateWordDoc but returns string for simple usage
-// For real .docx generation, use generateDocxBlob
+// Compatibility wrapper
 export const generateWordDoc = (content: string, title: string = 'A.G.I.S. Report', language: 'ja' | 'en' = 'ja'): string => {
     return generateWordDocHtml(content, title, language);
 }
 
+/**
+ * Generates a Blob for .docx download.
+ * Uses html-docx-js if available for true DOCX, otherwise falls back to MHTML (.doc).
+ */
 export const generateDocxBlob = (content: string, title: string = 'A.G.I.S. Report', language: 'ja' | 'en' = 'ja'): Blob | null => {
-    const html = generateWordDocHtml(content, title, language);
+    // 1. Extract pure content without headers/footers/scripts
+    const bodyContent = extractCleanBodyContent(content);
     
+    // 2. Use html-docx-js if available for true DOCX generation
     if (typeof window.htmlDocx !== 'undefined') {
-        return window.htmlDocx.asBlob(html, {
+        // Build a simple, standard HTML specifically for html-docx-js
+        // DO NOT include xmlns:o or xmlns:w headers here, as it confuses the parser.
+        const standardHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: sans-serif; line-height: 1.5; }
+        img { max-width: 100%; height: auto; }
+        table { border-collapse: collapse; width: 100%; }
+        td, th { border: 1px solid #999; padding: 5px; }
+    </style>
+</head>
+<body>
+    <h1>${title}</h1>
+    ${bodyContent}
+</body>
+</html>`;
+
+        return window.htmlDocx.asBlob(standardHtml, {
              orientation: 'portrait',
              margins: { top: 1440, right: 1440, bottom: 1440, left: 1440 } // Twips
         });
     }
     
-    // Fallback to simple fake-doc if library is missing
-    return new Blob([html], { type: 'application/msword;charset=utf-8' });
+    // 3. Fallback: Use MHTML format for .doc
+    const mhtml = generateWordDocHtml(content, title, language);
+    return new Blob([mhtml], { type: 'application/msword;charset=utf-8' });
 };
