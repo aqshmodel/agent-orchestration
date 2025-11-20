@@ -55,7 +55,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ code, language = 'text', artifact
             // First replace specific Generate tags
              fileContent = fileContent.replace(/<GENERATE_IMAGE\s+PROMPT="([^"]+)"[^>]*\/>/g, (match, prompt) => {
                 // Fuzzy match for artifacts by prompt description
-                const foundArtifact = Object.values(artifacts).find(art => art.description.includes(prompt.substring(0, 20)));
+                const foundArtifact = (Object.values(artifacts) as Artifact[]).find((art) => art.description?.includes(prompt.substring(0, 20)));
                 
                 if (foundArtifact && foundArtifact.type === 'image') {
                      return `<img src="data:${foundArtifact.mimeType};base64,${foundArtifact.data}" alt="${prompt}" style="max-width:100%; border-radius:8px;" />`;

@@ -25,7 +25,7 @@ const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({ content, messag
     const results: { id: string, code: string, agentId: string, timestamp: string }[] = [];
     
     Object.entries(messages).forEach(([agentId, agentMsgs]) => {
-      agentMsgs.forEach((msg, msgIdx) => {
+      (agentMsgs as Message[]).forEach((msg, msgIdx) => {
          if (msg.sender === 'agent') {
              const matches = [...msg.content.matchAll(/```mermaid\n([\s\S]*?)```/g)];
              matches.forEach((match, matchIdx) => {
@@ -147,7 +147,7 @@ const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({ content, messag
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {Object.values(artifacts).filter(a => a.type === 'image').reverse().map((art) => (
+                            {Object.values(artifacts).filter((a: Artifact) => a.type === 'image').reverse().map((art: Artifact) => (
                                 <div key={art.id} className="group relative bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-cyan-500 transition-all hover:shadow-xl hover:shadow-cyan-900/20">
                                     <div className="aspect-video bg-gray-900 flex items-center justify-center overflow-hidden">
                                         <img src={`data:${art.mimeType};base64,${art.data}`} alt={art.description} className="object-contain w-full h-full" />

@@ -18,7 +18,7 @@ const ArtifactRenderer: React.FC<ArtifactRendererProps> = ({ id, description, ar
     
     if (!artifact && prompt && artifacts) {
         // Use fuzzy match or exact match for prompt
-        artifact = Object.values(artifacts).find(art => art.description === prompt || art.description.includes(prompt.substring(0, 20)));
+        artifact = Object.values(artifacts).find((art: Artifact) => art.description === prompt || art.description.includes(prompt.substring(0, 20)));
     }
 
     if (!artifact) {

@@ -1,5 +1,4 @@
 
-
 import { AGENTS } from '../constants';
 import { generateResponseStream } from './geminiService';
 import { TranslationResource } from '../types';
@@ -20,6 +19,7 @@ interface LeadershipStateActions {
     addGraphEvent: (event: any) => void;
     setCurrentPhase: (phase: Phase) => void;
     setRefinementCount: (updater: (prev: number) => number) => void;
+    setSelectedAgents: (updater: (prev: Set<string>) => Set<string>) => void;
 }
 
 interface LeadershipContext {
@@ -51,15 +51,70 @@ export const runLeadershipWorkflow = async (
         return basePrompt + t.prompts.systemInstructionOverride;
     };
 
-    // --- Phase 3: Reporting & Evaluation (President decides) ---
+    // --- Phase 3: Reporting & Evaluation ---
     actions.setCurrentPhase('reporting');
+
+    // ==========================================
+    // STEP 1: COO Audit (COOによる品質監査)
+    // ==========================================
+    actions.setCurrentStatus(t.status.cooAssembling); // Reuse message or add new one "COO is auditing..."
+    actions.addMessage('coo', { sender: 'user', content: `[Orchestrator Report]\n${orchestratorSummary}\n\nAudit this report.`, timestamp: new Date().toLocaleTimeString() });
+    actions.setAgentThinking('coo', true);
+    actions.addGraphEvent({ from: 'orchestrator', to: 'coo', type: 'report', label: 'Review Request', timestamp: Date.now() });
+
+    const cooAuditResponse = await generateResponseStream(
+        getSystemInstruction(coo.systemPrompt),
+        `[Orchestrator Report]\n${orchestratorSummary}\n\nEvaluate this based on the strategy. Output AGIS_AUDIT::APPROVE or AGIS_AUDIT::REJECT.`,
+        (chunk) => actions.updateAgentLastMessage('coo', chunk),
+        context.conversationHistory,
+        context.sharedKnowledgeBase,
+        modelConfig.model,
+        false,
+        undefined,
+        undefined,
+        modelConfig.thinkingConfig,
+        language,
+        'coo'
+    );
+    actions.setAgentThinking('coo', false);
+    actions.appendToHistory(`--- COO Audit ---\n${cooAuditResponse.text}`);
+    
+    const cooText = cooAuditResponse.text;
+    
+    // Check for Member Addition during Audit
+    const addMemberMatch = cooText.match(/AGIS_TEAM_ADD::\s*[\[［【](.*?)[\]］】]/i);
+    if (addMemberMatch) {
+        const alias = addMemberMatch[1].trim();
+        const agent = AGENTS.find(a => a.alias === alias || a.id === alias);
+        if (agent) {
+             actions.setSelectedAgents(prev => new Set(prev).add(agent.id));
+             actions.showToast(`COO added ${agent.name} for reinforcement.`, 'info');
+             actions.addGraphEvent({ from: 'coo', to: agent.alias, type: 'add_member', label: 'Reinforcement', timestamp: Date.now() });
+        }
+    }
+
+    // Logic Branching based on COO Audit
+    if (cooText.includes("AGIS_AUDIT::REJECT")) {
+        // Case: COO Rejected
+        actions.addGraphEvent({ from: 'coo', to: 'orchestrator', type: 'instruction', label: 'Reject & Retry', timestamp: Date.now() });
+        actions.setCurrentPhase('execution');
+        actions.showToast("COO rejected the report. Re-assigning tasks.", "error");
+        
+        // Extract instruction part
+        const instruction = cooText.replace(/AGIS_AUDIT::REJECT/, '').trim();
+        return { success: false, reinstruction: `[COO Order] Report Rejected.\n${instruction}` };
+    }
+
+    // ==========================================
+    // STEP 2: President Evaluation (プレジデントによる最終判断)
+    // ==========================================
+    // COO Approved. Now President evaluates based on COO's summary.
     actions.setCurrentStatus(t.status.presidentReviewing);
+    const evaluationPrompt = t.prompts.presidentEvaluationPrompt.replace('{orchestratorSummary}', cooText); // Use COO's filtered summary
 
-    // Prompt President to evaluate Orchestrator's summary
-    const evaluationPrompt = t.prompts.presidentEvaluationPrompt.replace('{orchestratorSummary}', orchestratorSummary);
-
-    actions.addMessage('president', { sender: 'system', content: "Evaluating Orchestrator's report...", timestamp: new Date().toLocaleTimeString() });
+    actions.addMessage('president', { sender: 'system', content: "Reviewing COO's recommendation...", timestamp: new Date().toLocaleTimeString() });
     actions.setAgentThinking('president', true);
+    actions.addGraphEvent({ from: 'coo', to: 'president', type: 'report', label: 'Recommendation', timestamp: Date.now() });
 
     const evalResponse = await generateResponseStream(
         getSystemInstruction(president.systemPrompt),
@@ -79,14 +134,49 @@ export const runLeadershipWorkflow = async (
     actions.appendToHistory(`--- President Evaluation ---\n${evalResponse.text}`);
 
     if (evalResponse.text.includes("REINSTRUCT::")) {
-        // Case A: Re-investigation needed
+        // Case: President Rejects -> Instructions go to COO first for Re-org
         actions.addGraphEvent({ from: 'president', to: 'coo', type: 'instruction', label: 'Re-org Order', timestamp: Date.now() });
-        actions.setCurrentPhase('execution');
         actions.showToast(t.status.presidentReinstructing, "info");
-        return { success: false, reinstruction: evalResponse.text };
+
+        // COO Re-organization Step
+        actions.setCurrentStatus("COO is reorganizing the team...");
+        actions.setAgentThinking('coo', true);
+        const reorgResponse = await generateResponseStream(
+            getSystemInstruction(coo.systemPrompt),
+            `President's Reinstruction:\n${evalResponse.text}\n\nReorganize the team (AGIS_TEAM::[...]) and instruct Orchestrator.`,
+            (chunk) => actions.updateAgentLastMessage('coo', chunk),
+            context.conversationHistory,
+            context.sharedKnowledgeBase,
+            modelConfig.model,
+            false,
+            undefined,
+            undefined,
+            modelConfig.thinkingConfig,
+            language,
+            'coo'
+        );
+        actions.setAgentThinking('coo', false);
+        actions.appendToHistory(`--- COO Re-org ---\n${reorgResponse.text}`);
+
+        // Parse new team
+        const teamMatch = reorgResponse.text.match(/AGIS_TEAM[:：]+\s*[\[［【](.*?)[\]］】]/i);
+        if (teamMatch) {
+             const aliases = teamMatch[1].split(/[,、\n]/).map(s => s.trim().replace(/['"”’]/g, ''));
+             aliases.forEach(alias => {
+                 const agent = AGENTS.find(a => a.alias === alias || a.id === alias);
+                 if (agent) actions.setSelectedAgents(prev => new Set(prev).add(agent.id));
+             });
+        }
+
+        actions.addGraphEvent({ from: 'coo', to: 'orchestrator', type: 'instruction', label: 'Re-execution', timestamp: Date.now() });
+        actions.setCurrentPhase('execution');
+
+        return { success: false, reinstruction: reorgResponse.text };
     }
 
-    // --- Phase 4: Drafting & Refinement Loop (CoS <-> President) ---
+    // ==========================================
+    // STEP 3: Drafting & Refinement Loop (CoS <-> President)
+    // ==========================================
     actions.setCurrentPhase('refinement');
     
     // Loop Variables
@@ -125,7 +215,8 @@ export const runLeadershipWorkflow = async (
         }
         const draftText = cosResponse.text;
         actions.appendToHistory(`--- CoS Draft ${currentRefinementLoop + 1} ---\n${draftText}`);
-        actions.setFinalReport(draftText); // Update preview with latest draft
+        // IMPORTANT: Do NOT set finalReport here yet to avoid premature preview button
+        // actions.setFinalReport(draftText); 
         actions.setAgentThinking('chief_of_staff', false);
 
         // 2. President Reviews Draft
@@ -136,7 +227,7 @@ export const runLeadershipWorkflow = async (
         let reviewSystemPrompt = getSystemInstruction(president.systemPrompt);
         let reviewInputPrompt = "";
 
-        // FORCE REJECTION LOGIC
+        // FORCE REJECTION LOGIC for first few loops
         if (currentRefinementLoop < 2) {
              reviewInputPrompt = t.prompts.presidentDraftReviewPrompt
                 .replace('{draftText}', draftText)
@@ -165,6 +256,7 @@ export const runLeadershipWorkflow = async (
 
         if (reviewResponse.text.includes("APPROVE::")) {
             isApproved = true;
+            actions.setFinalReport(draftText); // Set Final Report ONLY when approved
             actions.showToast(language === 'en' ? "Final Report Approved!" : "最終レポートが承認されました", "success");
         } else {
             // Prepare for next loop

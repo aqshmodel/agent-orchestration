@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Artifact } from '../../types';
@@ -30,7 +31,7 @@ const ArtifactPreviewModal: React.FC<ArtifactPreviewModalProps> = ({ code, langu
             
             // 2. Try Prompt Fuzzy
             if (!foundArtifact) {
-                foundArtifact = Object.values(artifacts).find(art => 
+                foundArtifact = Object.values(artifacts).find((art: Artifact) => 
                     art.type === 'image' && (art.description === prompt || art.description.includes(prompt.substring(0, 20)))
                 );
             }

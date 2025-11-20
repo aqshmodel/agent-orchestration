@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { AGENTS } from './constants';
 import AgentCard from './components/agents/AgentCard';
@@ -50,11 +51,40 @@ const App: React.FC = () => {
   }
 
   // Extract Leadership Team (First 4 agents: President, COO, CoS, Orchestrator)
-  const leadershipTeam = AGENTS.slice(0, 4);
+  const allLeadershipAgents = AGENTS.slice(0, 4);
+  
+  // Determine visible leadership agents based on phase
+  const getVisibleLeadershipAgents = () => {
+      switch (currentPhase) {
+          case 'strategy':
+              // Strategy: President decides, COO assembles. CoS/Orchestrator not active yet.
+              return allLeadershipAgents.filter(a => a.id === 'president' || a.id === 'coo');
+          
+          case 'execution':
+              // Execution: Orchestrator is working. President is monitoring.
+              // COO has finished assembly, CoS is waiting for results. Hide them to reduce noise.
+              return allLeadershipAgents.filter(a => a.id === 'president' || a.id === 'orchestrator');
+          
+          case 'reporting':
+              // Reporting: Orchestrator reports to COO, then COO reports to President.
+              // CoS is not yet writing.
+              return allLeadershipAgents.filter(a => a.id !== 'chief_of_staff');
+
+          case 'refinement':
+          case 'completed':
+              // Refinement/Completed: All members are relevant.
+              return allLeadershipAgents;
+              
+          default:
+              return allLeadershipAgents;
+      }
+  };
+
+  const visibleLeadershipTeam = getVisibleLeadershipAgents();
   
   // Determine active agents based on phase for highlighting
   const getActiveRingClass = (agentId: string) => {
-      const base = "ring-offset-2 ring-offset-gray-900 transition-all duration-500";
+      const base = "ring-offset-2 ring-offset-gray-900 transition-all duration-500 h-full";
       
       // Always highlight thinking agents
       if (thinkingAgents.has(agentId)) return `${base} ring-2 ring-cyan-400`;
@@ -66,20 +96,20 @@ const App: React.FC = () => {
               if (agentId === 'president' || agentId === 'coo') isActive = true;
               break;
           case 'execution':
-              if (agentId === 'orchestrator' || agentId === 'coo') isActive = true;
+              if (agentId === 'orchestrator') isActive = true;
               break;
           case 'reporting':
-              if (agentId === 'orchestrator' || agentId === 'president') isActive = true;
+              if (agentId === 'orchestrator' || agentId === 'coo') isActive = true;
               break;
           case 'refinement':
               if (agentId === 'president' || agentId === 'chief_of_staff') isActive = true;
               break;
           case 'completed':
-              if (agentId === 'president' || agentId === 'chief_of_staff') isActive = true;
+              if (agentId === 'president') isActive = true;
               break;
       }
       
-      return isActive ? `${base} ring-1 ring-white/30` : "";
+      return isActive ? `${base} ring-1 ring-white/30` : base;
   };
 
   return (
@@ -96,23 +126,43 @@ const App: React.FC = () => {
         
         <main className="flex-grow p-2 sm:p-4 grid grid-rows-[auto_1fr] gap-4 min-h-0">
             {/* Leadership Section */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 transition-all duration-500">
-                {leadershipTeam.map(agent => (
-                    <div key={agent.id} className={getActiveRingClass(agent.id) + " rounded-lg"}>
-                        <AgentCard 
-                          agent={agent}
-                          messages={messages[agent.id] || []}
-                          isThinking={thinkingAgents.has(agent.id)}
-                          // Only President and CoS reports are treated as "Final" candidates
-                          finalReport={(agent.id === 'president' || agent.id === 'chief_of_staff') ? finalReport : null}
-                          artifacts={artifacts}
-                          onExpand={() => setExpandedAgentId(agent.id)}
-                          onPreview={handleOpenPreview}
-                          // Make cards slightly more compact if showing 4 rows on mobile
-                          isCompact={false} 
-                        />
-                    </div>
-                ))}
+            {/* Grid Size: md:grid-cols-2 makes them span 2 standard units (50% width) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 transition-all duration-500">
+                {visibleLeadershipTeam.map(agent => {
+                    // Final Report Logic:
+                    // - CoS: Never shows final report preview (drafting focus).
+                    // - President: Shows final report preview ONLY when completed (approved).
+                    // - Others: Null.
+                    let agentReport = null;
+                    let previewHandler = undefined;
+
+                    if (agent.id === 'president') {
+                        // President holds the "Official" report.
+                        agentReport = finalReport;
+                        // Only enable preview button when the project is fully completed (Approved).
+                        if (systemStatus === 'completed') {
+                            previewHandler = handleOpenPreview;
+                        }
+                    } 
+                    // CoS sends drafts via messages, but we don't attach the "Final Report" artifact 
+                    // to the card header to prevent premature "Final Report" labels/buttons.
+
+                    return (
+                        <div key={agent.id} className={getActiveRingClass(agent.id) + " rounded-lg"}>
+                            <AgentCard 
+                              agent={agent}
+                              messages={messages[agent.id] || []}
+                              isThinking={thinkingAgents.has(agent.id)}
+                              finalReport={agentReport}
+                              artifacts={artifacts}
+                              onExpand={() => setExpandedAgentId(agent.id)}
+                              onPreview={previewHandler}
+                              // Leadership cards are always expanded/prominent
+                              isCompact={false} 
+                            />
+                        </div>
+                    );
+                })}
             </div>
             
             {/* Specialist Grid */}
