@@ -85,14 +85,14 @@ export const ORCHESTRATOR_TOOLS: FunctionDeclaration[] = [
     },
   },
   {
-    name: 'complete',
-    description: 'ミッションを完了し、最終報告を提出する。',
+    name: 'report_to_leadership',
+    description: '全てのタスクが完了したと判断し、収集した情報をリーダーシップチーム（President, COO, CoS）に報告する。',
     parameters: {
       type: Type.OBJECT,
       properties: {
-        final_report: { type: Type.STRING, description: '最終報告書の内容' },
+        summary: { type: Type.STRING, description: '収集した情報の要約と成果' },
       },
-      required: ['final_report'],
+      required: ['summary'],
     },
   },
 ];

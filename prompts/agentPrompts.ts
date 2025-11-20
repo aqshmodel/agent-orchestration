@@ -1,6 +1,8 @@
 
 import { COMMON_POSTAMBLE } from './common';
 import { PRESIDENT_PROMPT } from './agents/president';
+import { COO_PROMPT } from './agents/coo';
+import { CHIEF_OF_STAFF_PROMPT } from './agents/chief_of_staff';
 import { ORCHESTRATOR_PROMPT } from './agents/orchestrator';
 import { A1_PROMPT } from './agents/A1_analyst';
 import { A2_PROMPT } from './agents/A2_ethno';
@@ -101,6 +103,8 @@ const SEARCH_CAPABILITY_NOTE = `
 
 export const AGENT_PROMPTS: Record<string, string> = {
   president: PRESIDENT_PROMPT,
+  coo: COO_PROMPT,
+  chief_of_staff: CHIEF_OF_STAFF_PROMPT,
   orchestrator: ORCHESTRATOR_PROMPT,
   
   // Search Enabled Agents (Tier 1 & Tier 2)

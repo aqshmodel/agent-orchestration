@@ -51,9 +51,11 @@ export const ja: TranslationResource = {
   },
   status: {
     orchestratorThinking: 'オーケストレーターが思考中... (サイクル {count})',
-    presidentThinking: 'プレジデントがチームを編成中...',
-    presidentReviewing: 'プレジデントが最終レポートを執筆中... (第1稿)',
-    presidentRefining: 'プレジデントがレポートを推敲・再執筆中... (品質向上プロセス: {current}/{total})',
+    presidentThinking: 'プレジデントが戦略を策定中...',
+    cooAssembling: 'COOが最適なチームを編成中...',
+    presidentReviewing: 'プレジデントがオーケストレーターの報告を評価中...',
+    cosDrafting: 'Chief of Staff (CoS) が最終レポートを執筆中... (第{count}稿)',
+    presidentRefining: 'プレジデントがCoSのドラフトをレビュー・推敲中... (第{count}稿)',
     presidentReinstructing: 'プレジデントの指示により、プロジェクトを継続します。',
     agentsWorking: '{names} が作業中...',
     agentsReported: '各専門家エージェントからの報告を受領しました。情報を統合し、次のステップを検討します。',
@@ -123,6 +125,8 @@ export const ja: TranslationResource = {
   },
   agents: {
     president: { name: 'プレジデント', role: '最高意思決定者' },
+    coo: { name: 'COO (最高執行責任者)', role: '組織・チーム編成責任者' },
+    chief_of_staff: { name: 'Chief of Staff (首席秘書官)', role: '情報統合・文書作成責任者' },
     orchestrator: { name: 'プロジェクト・オーケストレーター', role: '統括管理者' },
     A1: { name: 'マーケット・アナリスト', role: '市場分析官' },
     A7: { name: 'ビジネス・ストラテジスト', role: '事業戦略家' },
@@ -216,6 +220,33 @@ export const ja: TranslationResource = {
 
 **これは推敲プロセスです。前回の出力を土台にしつつ、それを遥かに凌駕する品質の「決定版」を出力してください。**
 `,
+      presidentEvaluationPrompt: `
+オーケストレーターから以下の報告がありました:
+"{orchestratorSummary}"
+
+プレジデントとして、この情報が最終的な戦略レポートを作成するのに十分かどうかを評価してください。
+- **不十分な場合:** COOにチーム再編と再調査を命じてください。（出力形式: "REINSTRUCT:: [COOへの具体的な指示]"）
+- **十分な場合:** Chief of Staff (CoS) に最終レポートのドラフト作成を命じてください。（出力形式: "PROCEED:: [CoSへの指示]"）
+`,
+      presidentDraftReviewPrompt: `
+CoSからのドラフトを確認してください:
+
+{draftText}
+
+[SYSTEM ORDER: 強制リファインメント]
+今回はリファインメント回数 {currentLoop} 回目です。
+まだ承認してはいけません。さらに品質を高めるため、少なくとも3つの具体的な改善点（数値の具体性欠如、論理の弱さ、デザインの単調さなど）を指摘し、書き直しを命じてください。
+出力は必ず "REINSTRUCT::" で始めてください。
+`,
+      presidentFinalApprovalPrompt: `
+CoSからのドラフトを確認してください:
+
+{draftText}
+
+[SYSTEM ORDER: 最終判定]
+これが最終確認です。品質が高ければ承認してください。承認する場合は "APPROVE::" と出力してください。
+`,
+      cosDefaultInstruction: "最終レポートを作成してください。",
       systemInstructionOverride: "", 
       orchestratorMandatoryRules: `
 【重要: 行動規範】

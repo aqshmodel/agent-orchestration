@@ -9,7 +9,8 @@ const AgentGrid: React.FC = () => {
     const { selectedAgents, messages, thinkingAgents, artifacts, setExpandedAgentId, handleOpenPreview } = useAgis();
     const { t } = useLanguage();
 
-    const specialistAgents = AGENTS.slice(2);
+    // Skip the first 4 agents (President, COO, CoS, Orchestrator)
+    const specialistAgents = AGENTS.slice(4);
     const isInitialState = selectedAgents.size === 0;
 
     const specialistAgentsByTeam = specialistAgents.reduce((acc, agent) => {

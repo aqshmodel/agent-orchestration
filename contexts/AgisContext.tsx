@@ -6,6 +6,7 @@ import { useSession } from '../hooks/useSession';
 import { useOrchestrator } from '../hooks/useOrchestrator';
 import { useLanguage } from './LanguageContext';
 import { AGENTS } from '../constants';
+import { Team } from '../types';
 import { generateResponseStream, UploadedFile } from '../services/geminiService';
 import { playStartSound } from '../services/soundService';
 import { getModelConfig } from '../config/models';
@@ -124,8 +125,11 @@ export const AgisProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { model: activeModel, thinkingConfig: activeThinkingConfig } = getModelConfig(state.selectedModel);
 
         try {
+            // 1. President Phase: Strategy Formulation
             const president = AGENTS.find(a => a.id === 'president');
-            if (!president) throw new Error("President agent not found");
+            const coo = AGENTS.find(a => a.id === 'coo');
+            
+            if (!president || !coo) throw new Error("Leadership agents not found");
 
             state.addMessage('president', { sender: 'user', content: prompt, timestamp: new Date().toLocaleTimeString() });
             state.addGraphEvent({ from: 'User', to: 'president', type: 'invoke', timestamp: Date.now() });
@@ -159,22 +163,97 @@ export const AgisProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
             state.setAgentThinking('president', false);
             const presText = presResponse.text;
-            state.appendToHistory(`--- President (Phase 1) ---\n${presText}`);
+            state.appendToHistory(`--- President (Strategy) ---\n${presText}`);
 
-            const teamMatch = presText.match(/AGIS_TEAM::\[(.*?)\]/);
-            if (teamMatch) {
-                const aliases = teamMatch[1].split(',').map(s => s.trim());
+            // 2. COO Phase: Team Formation
+            const cooPrompt = t.prompts.presidentInstructionReceived + presText;
+            state.addMessage('coo', { sender: 'user', content: cooPrompt, timestamp: new Date().toLocaleTimeString() });
+            state.addGraphEvent({ from: 'president', to: 'coo', type: 'instruction', label: 'Strategic Directive', timestamp: Date.now() });
+            
+            state.setCurrentStatus(t.status.cooAssembling);
+            state.setAgentThinking('coo', true);
+
+            const cooResponse = await generateResponseStream(
+                getSystemInstruction(coo.systemPrompt),
+                cooPrompt,
+                (chunk) => state.updateAgentLastMessage('coo', chunk),
+                state.conversationHistoryRef.current,
+                state.sharedKnowledgeBaseRef.current,
+                activeModel,
+                false,
+                undefined,
+                undefined,
+                activeThinkingConfig,
+                language,
+                'coo'
+            );
+
+            if (cooResponse.artifacts && cooResponse.artifacts.length > 0) {
+                state.registerArtifacts(cooResponse.artifacts);
+            }
+            
+            state.setAgentThinking('coo', false);
+            const cooText = cooResponse.text;
+            state.appendToHistory(`--- COO (Team Formation) ---\n${cooText}`);
+
+            // Robust Parsing of Team from COO output
+            try {
+                // 1. Try standard format with flexible regex (supports fullwidth brackets/colons)
+                const teamMatch = cooText.match(/AGIS_TEAM[:：]+\s*[\[［【](.*?)[\]］】]/i);
+                
                 const newSelectedAgents = new Set<string>();
-                aliases.forEach(alias => {
-                    const agent = AGENTS.find(a => a.alias === alias);
-                    if (agent) newSelectedAgents.add(agent.id);
-                });
-                state.setSelectedAgents(newSelectedAgents);
+
+                if (teamMatch) {
+                    const content = teamMatch[1];
+                    // Split by comma, Japanese comma, or newline
+                    const aliases = content.split(/[,、\n]/).map(s => s.trim().replace(/['"”’]/g, ''));
+                    
+                    aliases.forEach(alias => {
+                        if (!alias) return;
+                        // Exact match alias or ID
+                        const agent = AGENTS.find(a => a.alias.toLowerCase() === alias.toLowerCase() || a.id === alias);
+                        if (agent) {
+                            newSelectedAgents.add(agent.id);
+                        }
+                    });
+                }
+                
+                // 2. Fallback: If no agents found or format broken, scan text for known aliases
+                if (newSelectedAgents.size === 0) {
+                    console.warn("AGIS_TEAM format parsing failed or empty. Scanning text for agent mentions...");
+                    // Scan entire text for agent aliases (excluding leadership to avoid false positives if mentioned)
+                    const specialistAgents = AGENTS.filter(a => a.team !== Team.LEADERSHIP && a.id !== 'president' && a.id !== 'coo' && a.id !== 'orchestrator' && a.id !== 'chief_of_staff');
+                    
+                    specialistAgents.forEach(agent => {
+                        // Check if alias or name appears in the text
+                        // Use word boundaries for English aliases to avoid partial matches (e.g. "or" in "orchestrator")
+                        const aliasRegex = new RegExp(`\\b${agent.alias}\\b`, 'i');
+                        if (aliasRegex.test(cooText) || cooText.includes(agent.name)) {
+                            newSelectedAgents.add(agent.id);
+                        }
+                    });
+                }
+
+                if (newSelectedAgents.size > 0) {
+                    state.setSelectedAgents(newSelectedAgents);
+                    const agentNames = Array.from(newSelectedAgents).map(id => t.agents[id]?.name || id).join(', ');
+                    state.showToast(language === 'en' ? `Team Assembled: ${agentNames}` : `チーム編成完了: ${agentNames}`, 'success');
+                } else {
+                     throw new Error("No agents detected in COO response.");
+                }
+
+            } catch (e) {
+                console.warn("Failed to parse COO team selection, using fallback.", e);
+                // Fallback: Select default analysts
+                const fallbackAgents = ['A1', 'A3', 'A5']; 
+                state.setSelectedAgents(new Set(fallbackAgents));
+                state.addErrorLog(`COO parsing error: ${e instanceof Error ? e.message : String(e)}. Using fallback team.`);
             }
 
-            const nextPrompt = t.prompts.presidentInstructionReceived + presText;
+            // 3. Orchestrator Phase: Execution
+            const nextPrompt = "COO Instructions:\n" + cooText;
             state.addMessage('orchestrator', { sender: 'user', content: nextPrompt, timestamp: new Date().toLocaleTimeString() });
-            state.addGraphEvent({ from: 'president', to: 'orchestrator', type: 'invoke', timestamp: Date.now() });
+            state.addGraphEvent({ from: 'coo', to: 'orchestrator', type: 'invoke', label: 'Handoff', timestamp: Date.now() });
 
             await runOrchestratorLoop(nextPrompt);
 

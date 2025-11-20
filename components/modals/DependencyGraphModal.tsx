@@ -1,6 +1,8 @@
+
+
 import React, { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { GraphEvent, Agent } from '../../types';
+import { GraphEvent, Agent, Team } from '../../types';
 import { AGENTS, TEAM_COLORS, AGENT_COLORS } from '../../constants';
 
 // Declare Mermaid global
@@ -33,6 +35,14 @@ const DependencyGraphModal: React.FC<DependencyGraphModalProps> = ({ events, sel
   const getAgentName = (agent: Agent) => {
       const transAgent = t.agents[agent.id];
       return transAgent ? transAgent.name : agent.name;
+  };
+
+  const isLeadershipAgent = (agent: Agent) => {
+      return agent.team === Team.LEADERSHIP || 
+             agent.id === 'president' || 
+             agent.id === 'orchestrator' || 
+             agent.id === 'coo' || 
+             agent.id === 'chief_of_staff';
   };
 
   useEffect(() => {
@@ -80,39 +90,44 @@ const DependencyGraphModal: React.FC<DependencyGraphModalProps> = ({ events, sel
             // 2. Define Nodes
             const activeNodes = new Set<string>();
             
-            // Always include President & Orchestrator
-            const president = getAgent('president')!;
-            const orchestrator = getAgent('orchestrator')!;
+            // Define Subgraph for Leadership
+            def += `subgraph Leadership\n`;
+            def += `direction TB\n`; // Top to Bottom layout inside subgraph
             
-            def += `${president.alias}["${getAgentName(president)}"]:::leadership\n`;
-            def += `${orchestrator.alias}["${getAgentName(orchestrator)}"]:::leadership\n`;
+            const leadershipAgents = ['president', 'coo', 'chief_of_staff', 'orchestrator'];
+            leadershipAgents.forEach(id => {
+                const agent = getAgent(id);
+                if(agent) {
+                     def += `${agent.alias}["${getAgentName(agent)}"]:::leadership\n`;
+                     activeNodes.add(agent.alias);
+                }
+            });
             
-            activeNodes.add(president.alias);
-            activeNodes.add(orchestrator.alias);
+            def += `end\n`; // End Subgraph
 
             // Process Events to find active agents and edges
             const edges: string[] = [];
             
-            // Initial Edge
-            edges.push(`${president.alias} --> ${orchestrator.alias}`);
+            // Define Structural Edges for Leadership (Static hierarchy)
+            // President -> COO -> Orchestrator
+            edges.push(`${getAgent('president')?.alias} -.-> ${getAgent('coo')?.alias}`);
+            edges.push(`${getAgent('coo')?.alias} -.-> ${getAgent('orchestrator')?.alias}`);
+            // President -> CoS (Refinement loop)
+            edges.push(`${getAgent('president')?.alias} -.-> ${getAgent('chief_of_staff')?.alias}`);
 
             events.forEach((e, index) => {
                 const fromAgent = getAgent(e.from);
                 const toAgent = getAgent(e.to);
 
                 if (fromAgent && toAgent) {
-                    // Add nodes if not present
-                    if (!activeNodes.has(fromAgent.alias)) {
-                        const className = fromAgent.id === 'orchestrator' || fromAgent.id === 'president' 
-                            ? 'leadership' 
-                            : `team_${fromAgent.team.replace(/[^a-zA-Z0-9]/g, '')}`;
+                    // Add nodes if not present (Specialists)
+                    if (!activeNodes.has(fromAgent.alias) && !isLeadershipAgent(fromAgent)) {
+                        const className = `team_${fromAgent.team.replace(/[^a-zA-Z0-9]/g, '')}`;
                         def += `${fromAgent.alias}["${getAgentName(fromAgent)}"]:::${className}\n`;
                         activeNodes.add(fromAgent.alias);
                     }
-                    if (!activeNodes.has(toAgent.alias)) {
-                         const className = toAgent.id === 'orchestrator' || toAgent.id === 'president' 
-                            ? 'leadership' 
-                             : `team_${toAgent.team.replace(/[^a-zA-Z0-9]/g, '')}`;
+                    if (!activeNodes.has(toAgent.alias) && !isLeadershipAgent(toAgent)) {
+                         const className = `team_${toAgent.team.replace(/[^a-zA-Z0-9]/g, '')}`;
                         def += `${toAgent.alias}["${getAgentName(toAgent)}"]:::${className}\n`;
                         activeNodes.add(toAgent.alias);
                     }
@@ -134,9 +149,11 @@ const DependencyGraphModal: React.FC<DependencyGraphModalProps> = ({ events, sel
                     } else if (e.type === 'report') {
                         arrow = '-->';
                         label = `|Report|`;
+                    } else if (e.type === 'instruction') {
+                        arrow = '==>';
+                        label = `|${seq}. Instruct|`;
                     }
                     
-                    // Simplified graph: remove label number if too cluttered, but user asked for "Thought Chain"
                     edges.push(`${fromAgent.alias} ${arrow} ${label} ${toAgent.alias}`);
                 }
             });
@@ -258,7 +275,7 @@ const DependencyGraphModal: React.FC<DependencyGraphModalProps> = ({ events, sel
             <div className="flex items-center gap-1"><span className="w-3 h-3 bg-[#450a0a] border border-[#ef4444] block"></span> Strategy</div>
             <div className="flex items-center gap-1"><span className="w-3 h-3 bg-[#431407] border border-[#f97316] block"></span> Insight</div>
             <div className="flex items-center gap-1"><span className="w-10 h-0.5 bg-[#64748b] block relative"><span className="absolute -top-1.5 right-0 text-gray-500">▶</span></span> Invoke</div>
-            <div className="flex items-center gap-1"><span className="w-10 h-0.5 border-t border-dashed border-[#64748b] block relative"><span className="absolute -top-1.5 right-0 text-gray-500">▶</span></span> Consult</div>
+            <div className="flex items-center gap-1"><span className="w-10 h-0.5 border-t border-dashed border-[#64748b] block relative"><span className="absolute -top-1.5 right-0 text-gray-500">▶</span></span> Consult/Instruct</div>
         </div>
 
       </div>

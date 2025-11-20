@@ -1,5 +1,4 @@
 
-
 import { useEffect } from 'react';
 import { Message, GraphEvent, Artifact } from '../types';
 import { generateImage } from '../services/geminiService';
@@ -144,6 +143,8 @@ export const useAgisState = () => {
     messageState.conversationHistoryRef.current = '';
     uiState.sharedKnowledgeBaseRef.current = '';
     uiState.processingRef.current = false;
+    uiState.setCurrentPhase('strategy');
+    uiState.setRefinementCount(0);
   };
 
   return {
@@ -169,6 +170,8 @@ export const useAgisState = () => {
     humanQuestion: uiState.humanQuestion, setHumanQuestion: uiState.setHumanQuestion,
     isWaitingForHuman: uiState.isWaitingForHuman, setIsWaitingForHuman: uiState.setIsWaitingForHuman,
     currentStatus: uiState.currentStatus, setCurrentStatus: uiState.setCurrentStatus,
+    currentPhase: uiState.currentPhase, setCurrentPhase: uiState.setCurrentPhase,
+    refinementCount: uiState.refinementCount, setRefinementCount: uiState.setRefinementCount,
     errorLogs: uiState.errorLogs, setErrorLogs: uiState.setErrorLogs,
     isErrorLogModalOpen: uiState.isErrorLogModalOpen, setIsErrorLogModalOpen: uiState.setIsErrorLogModalOpen,
     isKnowledgeBaseOpen: uiState.isKnowledgeBaseOpen, setIsKnowledgeBaseOpen: uiState.setIsKnowledgeBaseOpen,

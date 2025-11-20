@@ -1,5 +1,4 @@
 
-
 import { Agent } from '../types';
 import { AGENTS } from '../constants';
 import { generateResponseStream } from '../services/geminiService';
@@ -9,7 +8,7 @@ import { playNotificationSound, playCompletionSound } from '../services/soundSer
 import { ORCHESTRATOR_TOOLS } from '../config/tools';
 import { getModelConfig } from '../config/models';
 import { processToolCalls } from '../services/orchestratorTools';
-import { executePresidentReview } from '../services/presidentOperations';
+import { runLeadershipWorkflow } from '../services/presidentOperations';
 
 export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
     const { t, language } = useLanguage();
@@ -30,6 +29,11 @@ export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
 
         const modelConfig = getModelConfig(state.selectedModel);
         const { model: activeModel, thinkingConfig: activeThinkingConfig } = modelConfig;
+        
+        // Reset Phase if starting fresh or re-instructed
+        if (state.currentPhase === 'completed' || state.currentPhase === 'strategy') {
+            state.setCurrentPhase('execution');
+        }
 
         while (loopCount < MAX_LOOPS && !missionComplete) {
             loopCount++;
@@ -90,13 +94,14 @@ export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
                 return; 
             }
 
-            // Handle Mission Completion & President Review
+            // Handle Mission Completion & Leadership Workflow
             if (toolResult.isMissionComplete && toolResult.finalReport) {
                 missionComplete = true;
                 
-                const reviewResult = await executePresidentReview(
+                // Transition to Leadership Workflow (Phase 3 & 4)
+                const leadershipResult = await runLeadershipWorkflow(
                     toolResult.finalReport,
-                    state, // State object has all methods required by PresidentStateActions
+                    state, // State object matches LeadershipStateActions requirements
                     {
                         conversationHistory: state.conversationHistoryRef.current,
                         sharedKnowledgeBase: state.sharedKnowledgeBaseRef.current
@@ -106,12 +111,14 @@ export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
                     language
                 );
 
-                if (reviewResult.success) {
+                if (leadershipResult.success) {
                     playCompletionSound();
-                    state.setSystemStatus('completed');
-                } else if (reviewResult.reinstruction) {
-                    missionComplete = false;
-                    currentPrompt = t.prompts.reinstructReceived.replace('{reviewText}', reviewResult.reinstruction);
+                    // System status is set to 'completed' inside runLeadershipWorkflow
+                } else if (leadershipResult.reinstruction) {
+                    // President ordered re-investigation
+                    missionComplete = false; // Resume orchestrator loop
+                    state.setCurrentPhase('execution');
+                    currentPrompt = t.prompts.reinstructReceived.replace('{reviewText}', leadershipResult.reinstruction);
                     state.addMessage('orchestrator', { sender: 'user', content: currentPrompt, timestamp: new Date().toLocaleTimeString() });
                 }
             }

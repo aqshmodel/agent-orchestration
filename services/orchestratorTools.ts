@@ -2,6 +2,7 @@
 import { Agent } from '../types';
 import { AGENTS } from '../constants';
 import { TranslationResource, GraphEvent } from '../types';
+import { Phase } from '../hooks/state/useUIState';
 
 // Define the subset of state actions required by the tools
 export interface OrchestratorStateActions {
@@ -12,6 +13,7 @@ export interface OrchestratorStateActions {
     setHumanQuestion: (q: string) => void;
     setIsWaitingForHuman: (waiting: boolean) => void;
     setSystemStatus: (status: any) => void;
+    setCurrentPhase: (phase: Phase) => void;
 }
 
 export interface ToolProcessingResult {
@@ -39,10 +41,13 @@ export const processToolCalls = (
         const fnName = call.name;
         const args = call.args;
 
-        if (fnName === 'complete') {
-            actions.addGraphEvent({ from: 'orchestrator', to: 'president', type: 'report', timestamp: Date.now() });
+        if (fnName === 'report_to_leadership') {
+            // Transition to Reporting Phase
+            actions.addGraphEvent({ from: 'orchestrator', to: 'president', type: 'report', label: 'Reporting to Leadership', timestamp: Date.now() });
+            actions.setCurrentPhase('reporting');
             result.isMissionComplete = true;
-            result.finalReport = args.final_report;
+            result.finalReport = args.summary;
+            actions.appendToHistory(`[Orchestrator] Reporting to Leadership:\n${args.summary}`);
         
         } else if (fnName === 'ask_human') {
             actions.setHumanQuestion(args.question);

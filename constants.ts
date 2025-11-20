@@ -1,5 +1,4 @@
 
-
 import { Agent, Team } from './types';
 import { AGENT_PROMPTS } from './prompts/agentPrompts';
 
@@ -11,6 +10,22 @@ export const AGENTS: Agent[] = [
     role: '最高意思決定者',
     team: Team.LEADERSHIP,
     systemPrompt: AGENT_PROMPTS['president'],
+  },
+  {
+    id: 'coo',
+    name: 'COO (最高執行責任者)',
+    alias: 'coo',
+    role: '組織・チーム編成責任者',
+    team: Team.LEADERSHIP,
+    systemPrompt: AGENT_PROMPTS['coo'],
+  },
+  {
+    id: 'chief_of_staff',
+    name: 'Chief of Staff (首席秘書官)',
+    alias: 'cos',
+    role: '情報統合・文書作成責任者',
+    team: Team.LEADERSHIP,
+    systemPrompt: AGENT_PROMPTS['chief_of_staff'],
   },
   {
     id: 'orchestrator',
@@ -110,6 +125,9 @@ export const AGENTS: Agent[] = [
 ];
 
 export const AGENT_COLORS: Record<string, { bg: string; border: string; text: string; }> = {
+  'president': { bg: "bg-slate-600/80", border: "border-slate-300", text: "text-slate-100" },
+  'coo': { bg: "bg-slate-600/60", border: "border-slate-400", text: "text-slate-200" },
+  'chief_of_staff': { bg: "bg-slate-600/60", border: "border-slate-400", text: "text-slate-200" },
   'orchestrator': { bg: "bg-slate-700/60", border: "border-slate-400", text: "text-slate-200" },
 };
 

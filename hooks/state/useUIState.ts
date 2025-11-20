@@ -2,11 +2,15 @@
 import { useState, useRef } from 'react';
 import { GraphEvent } from '../../types';
 
+export type Phase = 'strategy' | 'execution' | 'reporting' | 'refinement' | 'completed';
+
 export const useUIState = () => {
   // Status
   const [isLoading, setIsLoading] = useState(false);
   const [systemStatus, setSystemStatus] = useState<'idle' | 'processing' | 'waiting' | 'completed' | 'error'>('idle');
   const [currentStatus, setCurrentStatus] = useState('');
+  const [currentPhase, setCurrentPhase] = useState<Phase>('strategy');
+  const [refinementCount, setRefinementCount] = useState(0);
   
   // Interactivity
   const [thinkingAgents, setThinkingAgents] = useState<Set<string>>(new Set());
@@ -62,6 +66,8 @@ export const useUIState = () => {
       isLoading, setIsLoading,
       systemStatus, setSystemStatus,
       currentStatus, setCurrentStatus,
+      currentPhase, setCurrentPhase,
+      refinementCount, setRefinementCount,
       thinkingAgents, setThinkingAgents, setAgentThinking,
       selectedAgents, setSelectedAgents,
       toast, setToast, showToast,

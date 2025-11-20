@@ -51,9 +51,11 @@ export const en: TranslationResource = {
   },
   status: {
     orchestratorThinking: 'Orchestrator is thinking... (Cycle {count})',
-    presidentThinking: 'President is assembling the team...',
-    presidentReviewing: 'President is writing the final report... (Draft 1)',
-    presidentRefining: 'President is refining and rewriting the report... (Quality Boost Process: {current}/{total})',
+    presidentThinking: 'President is formulating strategy...',
+    cooAssembling: 'COO is assembling the optimal team...',
+    presidentReviewing: 'President is evaluating the Orchestrator\'s report...',
+    cosDrafting: 'Chief of Staff (CoS) is writing the final report... (Draft {count})',
+    presidentRefining: 'President is reviewing and refining the draft... (Draft {count})',
     presidentReinstructing: 'President instructed revisions. Project continued.',
     agentsWorking: '{names} are working...',
     agentsReported: 'Reports received from specialists. Consolidating information and planning next steps.',
@@ -123,6 +125,8 @@ export const en: TranslationResource = {
   },
   agents: {
     president: { name: 'President', role: 'Chief Decision Maker' },
+    coo: { name: 'COO', role: 'Chief Operating Officer' },
+    chief_of_staff: { name: 'Chief of Staff', role: 'Head of Intelligence & Documentation' },
     orchestrator: { name: 'Project Orchestrator', role: 'General Manager' },
     A1: { name: 'Market Analyst', role: 'Market Intelligence Officer' },
     A7: { name: 'Business Strategist', role: 'Strategic Planner' },
@@ -216,6 +220,33 @@ Do not settle for a single pass. Strengthen the following points and **completel
 
 **This is a refinement process. Use the previous output as a base, but produce a "Definitive Edition" of far superior quality.**
 `,
+      presidentEvaluationPrompt: `
+Orchestrator has submitted the following report:
+"{orchestratorSummary}"
+
+As President, evaluate if this information is sufficient to create the final strategy report.
+- **If INSUFFICIENT:** Order COO to reorganize the team for re-investigation. (Output format: "REINSTRUCT:: [Detailed Instructions to COO]")
+- **If SUFFICIENT:** Order Chief of Staff (CoS) to draft the final report. (Output format: "PROCEED:: [Instructions to CoS]")
+`,
+      presidentDraftReviewPrompt: `
+Review this draft from CoS:
+
+{draftText}
+
+[SYSTEM ORDER: MANDATORY REJECTION]
+Usage count: {currentLoop}
+You MUST NOT approve this draft yet. Find at least 3 specific areas for improvement (e.g. lack of specific numbers, weak logic, boring design). 
+Output format MUST start with "REINSTRUCT::" followed by harsh but constructive feedback.
+`,
+      presidentFinalApprovalPrompt: `
+Review this draft from CoS:
+
+{draftText}
+
+[SYSTEM ORDER: FINAL JUDGMENT]
+This is the final iteration. If the quality is high, approve it. Output "APPROVE::" to finish.
+`,
+      cosDefaultInstruction: "Create the final report.",
       systemInstructionOverride: "\n\n[IMPORTANT: LANGUAGE OVERRIDE]\nThe user has selected ENGLISH mode. Regardless of the fact that your original instructions are in Japanese, you MUST think, act, and generate ALL outputs, reports, and responses in ENGLISH.\n**This includes ALL text within graphs, charts (Mermaid), and Python plots.**\n\n**[MANDATORY FORMATTING]**\nYou MUST conclude your report with a section titled '**Key Insights**' containing bullet points of critical findings, followed by a section titled '**Proposals to Orchestrator**'. Use these EXACT headers.",
       orchestratorMandatoryRules: `
 [IMPORTANT: BEHAVIORAL RULES]

@@ -8,7 +8,16 @@ import ModalManager from './components/modals/ModalManager';
 import { useAgis } from './hooks/useAgis';
 
 const App: React.FC = () => {
-  const { systemStatus, messages, thinkingAgents, finalReport, artifacts, setExpandedAgentId, handleOpenPreview } = useAgis();
+  const { 
+    systemStatus, 
+    messages, 
+    thinkingAgents, 
+    finalReport, 
+    artifacts, 
+    setExpandedAgentId, 
+    handleOpenPreview,
+    currentPhase 
+  } = useAgis();
 
   // Dynamic Background Logic
   const getBackgroundGradient = (status: string) => {
@@ -40,8 +49,39 @@ const App: React.FC = () => {
     );
   }
 
-  const presidentAndOrchestrator = AGENTS.slice(0, 2);
+  // Extract Leadership Team (First 4 agents: President, COO, CoS, Orchestrator)
+  const leadershipTeam = AGENTS.slice(0, 4);
   
+  // Determine active agents based on phase for highlighting
+  const getActiveRingClass = (agentId: string) => {
+      const base = "ring-offset-2 ring-offset-gray-900 transition-all duration-500";
+      
+      // Always highlight thinking agents
+      if (thinkingAgents.has(agentId)) return `${base} ring-2 ring-cyan-400`;
+
+      // Phase-based subtle highlighting
+      let isActive = false;
+      switch (currentPhase) {
+          case 'strategy':
+              if (agentId === 'president' || agentId === 'coo') isActive = true;
+              break;
+          case 'execution':
+              if (agentId === 'orchestrator' || agentId === 'coo') isActive = true;
+              break;
+          case 'reporting':
+              if (agentId === 'orchestrator' || agentId === 'president') isActive = true;
+              break;
+          case 'refinement':
+              if (agentId === 'president' || agentId === 'chief_of_staff') isActive = true;
+              break;
+          case 'completed':
+              if (agentId === 'president' || agentId === 'chief_of_staff') isActive = true;
+              break;
+      }
+      
+      return isActive ? `${base} ring-1 ring-white/30` : "";
+  };
+
   return (
     <div className="relative h-screen w-screen overflow-hidden text-gray-100 font-sans">
       {/* Background Layers */}
@@ -54,21 +94,28 @@ const App: React.FC = () => {
         <ModalManager />
         <Header />
         
-        <main className="flex-grow p-2 sm:p-4 grid grid-rows-[255px_1fr] gap-4 min-h-0">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {presidentAndOrchestrator.map(agent => (
-                <AgentCard 
-                  key={agent.id}
-                  agent={agent}
-                  messages={messages[agent.id] || []}
-                  isThinking={thinkingAgents.has(agent.id)}
-                  finalReport={agent.id === 'president' ? finalReport : null}
-                  artifacts={artifacts}
-                  onExpand={() => setExpandedAgentId(agent.id)}
-                  onPreview={handleOpenPreview}
-                />
-            ))}
+        <main className="flex-grow p-2 sm:p-4 grid grid-rows-[auto_1fr] gap-4 min-h-0">
+            {/* Leadership Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 transition-all duration-500">
+                {leadershipTeam.map(agent => (
+                    <div key={agent.id} className={getActiveRingClass(agent.id) + " rounded-lg"}>
+                        <AgentCard 
+                          agent={agent}
+                          messages={messages[agent.id] || []}
+                          isThinking={thinkingAgents.has(agent.id)}
+                          // Only President and CoS reports are treated as "Final" candidates
+                          finalReport={(agent.id === 'president' || agent.id === 'chief_of_staff') ? finalReport : null}
+                          artifacts={artifacts}
+                          onExpand={() => setExpandedAgentId(agent.id)}
+                          onPreview={handleOpenPreview}
+                          // Make cards slightly more compact if showing 4 rows on mobile
+                          isCompact={false} 
+                        />
+                    </div>
+                ))}
             </div>
+            
+            {/* Specialist Grid */}
             <AgentGrid />
         </main>
 

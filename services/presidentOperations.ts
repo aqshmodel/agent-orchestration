@@ -1,11 +1,13 @@
 
+
 import { AGENTS } from '../constants';
 import { generateResponseStream } from './geminiService';
 import { TranslationResource } from '../types';
 import { ModelConfig } from '../config/models';
+import { Phase } from '../hooks/state/useUIState';
 
 // Define the subset of state actions required
-interface PresidentStateActions {
+interface LeadershipStateActions {
     setCurrentStatus: (status: string) => void;
     addMessage: (agentId: string, message: any) => void;
     setAgentThinking: (agentId: string, isThinking: boolean) => void;
@@ -14,47 +16,54 @@ interface PresidentStateActions {
     registerArtifacts: (artifacts: any[]) => void;
     setFinalReport: (report: string) => void;
     setSystemStatus: (status: any) => void;
-    showToast: (message: string) => void;
+    showToast: (message: string, type?: 'success' | 'info' | 'error') => void;
     addGraphEvent: (event: any) => void;
+    setCurrentPhase: (phase: Phase) => void;
+    setRefinementCount: (updater: (prev: number) => number) => void;
 }
 
-interface PresidentContext {
+interface LeadershipContext {
     conversationHistory: string;
     sharedKnowledgeBase: string;
 }
 
-export interface PresidentReviewResult {
+export interface LeadershipWorkflowResult {
     success: boolean;
     reinstruction?: string;
 }
 
-export const executePresidentReview = async (
-    finalReportText: string,
-    actions: PresidentStateActions,
-    context: PresidentContext,
+export const runLeadershipWorkflow = async (
+    orchestratorSummary: string,
+    actions: LeadershipStateActions,
+    context: LeadershipContext,
     modelConfig: ModelConfig,
     t: TranslationResource,
     language: 'ja' | 'en'
-): Promise<PresidentReviewResult> => {
+): Promise<LeadershipWorkflowResult> => {
     
     const president = AGENTS.find(a => a.id === 'president');
-    if (!president) throw new Error("President not found");
+    const coo = AGENTS.find(a => a.id === 'coo');
+    const cos = AGENTS.find(a => a.id === 'chief_of_staff');
+    
+    if (!president || !coo || !cos) throw new Error("Leadership team not found");
 
     const getSystemInstruction = (basePrompt: string) => {
         return basePrompt + t.prompts.systemInstructionOverride;
     };
 
+    // --- Phase 3: Reporting & Evaluation (President decides) ---
+    actions.setCurrentPhase('reporting');
     actions.setCurrentStatus(t.status.presidentReviewing);
-    
-    const reviewPrompt = t.prompts.orchestratorReviewRequest.replace('{finalReportText}', finalReportText);
-    actions.addMessage('president', { sender: 'user', content: reviewPrompt, timestamp: new Date().toLocaleTimeString() });
 
+    // Prompt President to evaluate Orchestrator's summary
+    const evaluationPrompt = t.prompts.presidentEvaluationPrompt.replace('{orchestratorSummary}', orchestratorSummary);
+
+    actions.addMessage('president', { sender: 'system', content: "Evaluating Orchestrator's report...", timestamp: new Date().toLocaleTimeString() });
     actions.setAgentThinking('president', true);
-    
-    // 1. Initial Generation (Pass 1)
-    const reviewResponse = await generateResponseStream(
+
+    const evalResponse = await generateResponseStream(
         getSystemInstruction(president.systemPrompt),
-        reviewPrompt,
+        evaluationPrompt,
         (chunk) => actions.updateAgentLastMessage('president', chunk),
         context.conversationHistory,
         context.sharedKnowledgeBase,
@@ -66,65 +75,112 @@ export const executePresidentReview = async (
         language,
         'president'
     );
-    
-    if (reviewResponse.artifacts && reviewResponse.artifacts.length > 0) {
-        actions.registerArtifacts(reviewResponse.artifacts);
+    actions.setAgentThinking('president', false);
+    actions.appendToHistory(`--- President Evaluation ---\n${evalResponse.text}`);
+
+    if (evalResponse.text.includes("REINSTRUCT::")) {
+        // Case A: Re-investigation needed
+        actions.addGraphEvent({ from: 'president', to: 'coo', type: 'instruction', label: 'Re-org Order', timestamp: Date.now() });
+        actions.setCurrentPhase('execution');
+        actions.showToast(t.status.presidentReinstructing, "info");
+        return { success: false, reinstruction: evalResponse.text };
     }
+
+    // --- Phase 4: Drafting & Refinement Loop (CoS <-> President) ---
+    actions.setCurrentPhase('refinement');
     
-    let currentPresidentResponseText = reviewResponse.text;
-    actions.appendToHistory(`--- President (Phase 2 - Draft 1) ---\n${currentPresidentResponseText}`);
+    // Loop Variables
+    const MAX_LOOPS = 3;
+    let currentRefinementLoop = 0;
+    let isApproved = false;
+    
+    // Initial instruction to CoS
+    let cosInstruction = evalResponse.text.replace("PROCEED::", "").trim();
+    if (!cosInstruction) cosInstruction = t.prompts.cosDefaultInstruction;
 
-    // Check if it's a candidate for refinement (Contains HTML and NOT Reinstructing)
-    if (!currentPresidentResponseText.includes('REINSTRUCT::') && currentPresidentResponseText.includes('<!DOCTYPE html>')) {
-        const MAX_REFINEMENT_LOOPS = 2; // 2 additional passes = Total 3 passes
+    while (currentRefinementLoop < MAX_LOOPS && !isApproved) {
+        // 1. Chief of Staff writes Draft
+        actions.setCurrentStatus(t.status.cosDrafting.replace('{count}', (currentRefinementLoop + 1).toString()));
+        actions.addMessage('chief_of_staff', { sender: 'user', content: cosInstruction, timestamp: new Date().toLocaleTimeString() });
+        actions.setAgentThinking('chief_of_staff', true);
+        actions.addGraphEvent({ from: 'president', to: 'chief_of_staff', type: 'instruction', label: `Draft ${currentRefinementLoop + 1}`, timestamp: Date.now() });
+
+        const cosResponse = await generateResponseStream(
+            getSystemInstruction(cos.systemPrompt),
+            cosInstruction,
+            (chunk) => actions.updateAgentLastMessage('chief_of_staff', chunk),
+            context.conversationHistory, // CoS sees full history including Orchestrator's report
+            context.sharedKnowledgeBase,
+            modelConfig.model, // Use generic model or specific model for long context?
+            false,
+            undefined,
+            undefined,
+            modelConfig.thinkingConfig,
+            language,
+            'chief_of_staff'
+        );
         
-        for (let i = 0; i < MAX_REFINEMENT_LOOPS; i++) {
-                actions.setCurrentStatus(t.status.presidentRefining.replace('{current}', (i+1).toString()).replace('{total}', MAX_REFINEMENT_LOOPS.toString()));
-                actions.setAgentThinking('president', true);
-                
-                const refinementPrompt = t.prompts.presidentRefinementPrompt;
-                
-                // Add invisible prompt to context (visible in history log but maybe redundant in UI)
-                // We force the prompt into the stream context
-                const refineResponse = await generateResponseStream(
-                getSystemInstruction(president.systemPrompt),
-                refinementPrompt, // This prompts the "Self-Correction"
-                    (chunk) => actions.updateAgentLastMessage('president', chunk),
-                    context.conversationHistory + `\n\n[System] Refinement Pass ${i+1} initiated.\n`, // Inject refinement marker
-                    context.sharedKnowledgeBase,
-                    modelConfig.model,
-                    false,
-                    undefined,
-                    undefined,
-                    modelConfig.thinkingConfig,
-                    language,
-                    'president'
-                );
-                
-                currentPresidentResponseText = refineResponse.text;
-                actions.appendToHistory(`--- President (Phase 2 - Refinement ${i+1}) ---\n${currentPresidentResponseText}`);
-                
-                if (refineResponse.artifacts && refineResponse.artifacts.length > 0) {
-                    actions.registerArtifacts(refineResponse.artifacts);
-                }
+        if (cosResponse.artifacts && cosResponse.artifacts.length > 0) {
+            actions.registerArtifacts(cosResponse.artifacts);
+        }
+        const draftText = cosResponse.text;
+        actions.appendToHistory(`--- CoS Draft ${currentRefinementLoop + 1} ---\n${draftText}`);
+        actions.setFinalReport(draftText); // Update preview with latest draft
+        actions.setAgentThinking('chief_of_staff', false);
 
-                // If president changes mind and asks for re-instruct, break loop
-                if (currentPresidentResponseText.includes('REINSTRUCT::')) {
-                    break; 
-                }
+        // 2. President Reviews Draft
+        actions.setCurrentStatus(t.status.presidentRefining.replace('{count}', (currentRefinementLoop + 1).toString()));
+        actions.setAgentThinking('president', true);
+        actions.addGraphEvent({ from: 'chief_of_staff', to: 'president', type: 'report', label: 'Review', timestamp: Date.now() });
+
+        let reviewSystemPrompt = getSystemInstruction(president.systemPrompt);
+        let reviewInputPrompt = "";
+
+        // FORCE REJECTION LOGIC
+        if (currentRefinementLoop < 2) {
+             reviewInputPrompt = t.prompts.presidentDraftReviewPrompt
+                .replace('{draftText}', draftText)
+                .replace('{currentLoop}', currentRefinementLoop.toString());
+        } else {
+             reviewInputPrompt = t.prompts.presidentFinalApprovalPrompt
+                .replace('{draftText}', draftText);
+        }
+
+        const reviewResponse = await generateResponseStream(
+            reviewSystemPrompt,
+            reviewInputPrompt,
+            (chunk) => actions.updateAgentLastMessage('president', chunk),
+            context.conversationHistory,
+            context.sharedKnowledgeBase,
+            modelConfig.model,
+            false,
+            undefined,
+            undefined,
+            modelConfig.thinkingConfig,
+            language,
+            'president'
+        );
+        actions.setAgentThinking('president', false);
+        actions.appendToHistory(`--- President Review ${currentRefinementLoop + 1} ---\n${reviewResponse.text}`);
+
+        if (reviewResponse.text.includes("APPROVE::")) {
+            isApproved = true;
+            actions.showToast(language === 'en' ? "Final Report Approved!" : "最終レポートが承認されました", "success");
+        } else {
+            // Prepare for next loop
+            const feedback = reviewResponse.text.replace("REINSTRUCT::", "").trim();
+            if (feedback) {
+                 cosInstruction = t.prompts.presidentRefinementPrompt + `\n\n[President's Feedback]\n${feedback}`;
+            } else {
+                 cosInstruction = t.prompts.presidentRefinementPrompt;
+            }
+            
+            currentRefinementLoop++;
+            actions.setRefinementCount(prev => prev + 1);
         }
     }
-    
-    actions.setAgentThinking('president', false);
 
-    if (currentPresidentResponseText.includes('REINSTRUCT::')) {
-        actions.addGraphEvent({ from: 'president', to: 'orchestrator', type: 'instruction', timestamp: Date.now() });
-        actions.setCurrentStatus(t.status.presidentReinstructing);
-        return { success: false, reinstruction: currentPresidentResponseText };
-    } else {
-        actions.setFinalReport(currentPresidentResponseText); 
-        actions.setSystemStatus('completed');
-        actions.showToast(t.status.completed);
-        return { success: true };
-    }
+    actions.setCurrentPhase('completed');
+    actions.setSystemStatus('completed');
+    return { success: true };
 };

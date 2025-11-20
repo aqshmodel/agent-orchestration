@@ -115,7 +115,9 @@ export interface TranslationResource {
   status: {
     orchestratorThinking: string;
     presidentThinking: string;
+    cooAssembling: string;
     presidentReviewing: string;
+    cosDrafting: string;
     presidentRefining: string;
     presidentReinstructing: string;
     agentsWorking: string;
@@ -176,6 +178,10 @@ export interface TranslationResource {
     reinstructReceived: string;
     orchestratorReviewRequest: string;
     presidentRefinementPrompt: string;
+    presidentEvaluationPrompt: string;
+    presidentDraftReviewPrompt: string;
+    presidentFinalApprovalPrompt: string;
+    cosDefaultInstruction: string; // Added this
     agentsReportedPrompt: string;
     memberAddedPrompt: string;
     checkCompletePrompt: string;
