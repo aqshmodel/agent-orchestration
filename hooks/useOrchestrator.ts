@@ -1,4 +1,5 @@
 
+
 import { Agent } from '../types';
 import { AGENTS } from '../constants';
 import { generateResponseStream } from '../services/geminiService';
@@ -57,6 +58,8 @@ export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
                 'orchestrator'
             );
             
+            state.addUsage(orchestratorResponse.usage.inputChars, orchestratorResponse.usage.outputChars);
+
             if (orchestratorResponse.artifacts && orchestratorResponse.artifacts.length > 0) {
                 state.registerArtifacts(orchestratorResponse.artifacts);
             }
@@ -151,7 +154,9 @@ export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
                             getSystemInstruction(task.agent.systemPrompt),
                             task.query,
                             (chunk) => state.updateAgentLastMessage(task.agent.id, chunk),
-                            state.conversationHistoryRef.current, 
+                            // Context Scoping: Specialists do NOT get the full conversation history.
+                            // They rely on the specific 'task.query' from Orchestrator and the 'sharedKnowledgeBase'.
+                            undefined, 
                             state.sharedKnowledgeBaseRef.current,
                             activeModel,
                             canSearch, // Pass the search capability flag
@@ -161,11 +166,16 @@ export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
                             language,
                             task.agent.id
                         );
-                        return { agent: task.agent, text: agentResponse.text, artifacts: agentResponse.artifacts };
+                        return { 
+                            agent: task.agent, 
+                            text: agentResponse.text, 
+                            artifacts: agentResponse.artifacts, 
+                            usage: agentResponse.usage 
+                        };
                     } catch (e) {
                         console.error(`Error executing agent ${task.agent.alias}`, e);
                         const errorMsg = language === 'en' ? "An error occurred." : "エラーが発生しました。";
-                        return { agent: task.agent, text: errorMsg, artifacts: [] };
+                        return { agent: task.agent, text: errorMsg, artifacts: [], usage: { inputChars: 0, outputChars: 0 } };
                     } finally {
                         state.setThinkingAgents(prev => {
                             const next = new Set(prev);
@@ -177,8 +187,10 @@ export const useOrchestrator = (state: ReturnType<typeof useAgisState>) => {
 
                 let combinedResults = "";
                 for (const res of results) {
-                    const { agent, text, artifacts } = res;
+                    const { agent, text, artifacts, usage } = res;
                     
+                    state.addUsage(usage.inputChars, usage.outputChars);
+
                     if (artifacts && artifacts.length > 0) {
                         state.registerArtifacts(artifacts);
                     }

@@ -12,6 +12,11 @@ export const useUIState = () => {
   const [currentPhase, setCurrentPhase] = useState<Phase>('strategy');
   const [refinementCount, setRefinementCount] = useState(0);
   
+  // Token/Char Usage & API Calls
+  const [totalInputChars, setTotalInputChars] = useState(0);
+  const [totalOutputChars, setTotalOutputChars] = useState(0);
+  const [totalApiCalls, setTotalApiCalls] = useState(0);
+  
   // Interactivity
   const [thinkingAgents, setThinkingAgents] = useState<Set<string>>(new Set());
   const [selectedAgents, setSelectedAgents] = useState<Set<string>>(new Set());
@@ -52,14 +57,23 @@ export const useUIState = () => {
   };
 
   const clearErrorLogs = () => setErrorLogs([]);
+  
+  const addUsage = (input: number, output: number) => {
+      setTotalInputChars(prev => prev + input);
+      setTotalOutputChars(prev => prev + output);
+      setTotalApiCalls(prev => prev + 1);
+  };
 
   const setAgentThinking = (agentId: string, isThinking: boolean) => {
-    setThinkingAgents(prev => {
-      const newSet = new Set(prev);
-      if (isThinking) newSet.add(agentId);
-      else newSet.delete(agentId);
-      return newSet;
-    });
+      setThinkingAgents(prev => {
+          const next = new Set(prev);
+          if (isThinking) {
+              next.add(agentId);
+          } else {
+              next.delete(agentId);
+          }
+          return next;
+      });
   };
 
   return {
@@ -68,6 +82,10 @@ export const useUIState = () => {
       currentStatus, setCurrentStatus,
       currentPhase, setCurrentPhase,
       refinementCount, setRefinementCount,
+      totalInputChars, setTotalInputChars,
+      totalOutputChars, setTotalOutputChars,
+      totalApiCalls, setTotalApiCalls,
+      addUsage,
       thinkingAgents, setThinkingAgents, setAgentThinking,
       selectedAgents, setSelectedAgents,
       toast, setToast, showToast,

@@ -1,5 +1,5 @@
 {
-  "name": "A.G.I.S. - AI Generative Intelligence System",
+  "name": "A.G.I.S. - ARTIFICIAL GENERAL INTELLIGENCE SYSTEM",
   "description": "An interactive application showcasing a hierarchical AI organization with 17 agents working together to provide comprehensive answers. The system features one President AI leading 16 specialized agents, all interacting in real-time.",
   "requestFramePermissions": [
     "microphone"

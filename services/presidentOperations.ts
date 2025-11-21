@@ -1,4 +1,5 @@
 
+
 import { AGENTS } from '../constants';
 import { generateResponseStream } from './geminiService';
 import { TranslationResource } from '../types';
@@ -20,6 +21,7 @@ interface LeadershipStateActions {
     setCurrentPhase: (phase: Phase) => void;
     setRefinementCount: (updater: (prev: number) => number) => void;
     setSelectedAgents: (updater: (prev: Set<string>) => Set<string>) => void;
+    addUsage: (input: number, output: number) => void;
 }
 
 interface LeadershipContext {
@@ -76,6 +78,9 @@ export const runLeadershipWorkflow = async (
         language,
         'coo'
     );
+    
+    actions.addUsage(cooAuditResponse.usage.inputChars, cooAuditResponse.usage.outputChars);
+
     actions.setAgentThinking('coo', false);
     actions.appendToHistory(`--- COO Audit ---\n${cooAuditResponse.text}`);
     
@@ -130,6 +135,9 @@ export const runLeadershipWorkflow = async (
         language,
         'president'
     );
+    
+    actions.addUsage(evalResponse.usage.inputChars, evalResponse.usage.outputChars);
+
     actions.setAgentThinking('president', false);
     actions.appendToHistory(`--- President Evaluation ---\n${evalResponse.text}`);
 
@@ -155,6 +163,9 @@ export const runLeadershipWorkflow = async (
             language,
             'coo'
         );
+        
+        actions.addUsage(reorgResponse.usage.inputChars, reorgResponse.usage.outputChars);
+
         actions.setAgentThinking('coo', false);
         actions.appendToHistory(`--- COO Re-org ---\n${reorgResponse.text}`);
 
@@ -183,6 +194,7 @@ export const runLeadershipWorkflow = async (
     const MAX_LOOPS = 3;
     let currentRefinementLoop = 0;
     let isApproved = false;
+    let lastDraftText = "";
     
     // Initial instruction to CoS
     let cosInstruction = evalResponse.text.replace("PROCEED::", "").trim();
@@ -210,13 +222,15 @@ export const runLeadershipWorkflow = async (
             'chief_of_staff'
         );
         
+        actions.addUsage(cosResponse.usage.inputChars, cosResponse.usage.outputChars);
+
         if (cosResponse.artifacts && cosResponse.artifacts.length > 0) {
             actions.registerArtifacts(cosResponse.artifacts);
         }
         const draftText = cosResponse.text;
+        lastDraftText = draftText;
+
         actions.appendToHistory(`--- CoS Draft ${currentRefinementLoop + 1} ---\n${draftText}`);
-        // IMPORTANT: Do NOT set finalReport here yet to avoid premature preview button
-        // actions.setFinalReport(draftText); 
         actions.setAgentThinking('chief_of_staff', false);
 
         // 2. President Reviews Draft
@@ -251,10 +265,17 @@ export const runLeadershipWorkflow = async (
             language,
             'president'
         );
+
+        actions.addUsage(reviewResponse.usage.inputChars, reviewResponse.usage.outputChars);
+
         actions.setAgentThinking('president', false);
         actions.appendToHistory(`--- President Review ${currentRefinementLoop + 1} ---\n${reviewResponse.text}`);
 
-        if (reviewResponse.text.includes("APPROVE::")) {
+        const responseText = reviewResponse.text;
+        // Strict checking for new command AGIS_CMD::APPROVE_REPORT or legacy APPROVE::
+        const isApprovedSignal = responseText.includes("AGIS_CMD::APPROVE_REPORT") || responseText.includes("APPROVE::");
+
+        if (isApprovedSignal) {
             isApproved = true;
             actions.setFinalReport(draftText); // Set Final Report ONLY when approved
             actions.showToast(language === 'en' ? "Final Report Approved!" : "最終レポートが承認されました", "success");
@@ -270,6 +291,12 @@ export const runLeadershipWorkflow = async (
             currentRefinementLoop++;
             actions.setRefinementCount(prev => prev + 1);
         }
+    }
+
+    // Fallback: If loop finishes without approval, force complete with last draft
+    if (!isApproved && lastDraftText) {
+        actions.setFinalReport(lastDraftText);
+        actions.showToast(language === 'en' ? "Refinement limit reached. Proceeding with current draft." : "推敲回数が上限に達しました。現在のドラフトを採用します。", "info");
     }
 
     actions.setCurrentPhase('completed');

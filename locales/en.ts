@@ -5,7 +5,7 @@ import { Team, TranslationResource } from '../types';
 export const en: TranslationResource = {
   app: {
     title: 'A.G.I.S.',
-    subtitle: 'AI GENERATIVE INTELLIGENCE SYSTEM',
+    subtitle: 'ARTIFICIAL GENERAL INTELLIGENCE SYSTEM',
     contextUsage: 'Context Usage',
     chars: 'chars',
     contextHigh: 'High memory usage. Clearing conversation history is recommended.',
@@ -244,7 +244,8 @@ Review this draft from CoS:
 {draftText}
 
 [SYSTEM ORDER: FINAL JUDGMENT]
-This is the final iteration. If the quality is high, approve it. Output "APPROVE::" to finish.
+This is the final iteration. If the quality is high, approve it. 
+Output **"AGIS_CMD::APPROVE_REPORT"** to finish.
 `,
       cosDefaultInstruction: "Create the final report.",
       systemInstructionOverride: "\n\n[IMPORTANT: LANGUAGE OVERRIDE]\nThe user has selected ENGLISH mode. Regardless of the fact that your original instructions are in Japanese, you MUST think, act, and generate ALL outputs, reports, and responses in ENGLISH.\n**This includes ALL text within graphs, charts (Mermaid), and Python plots.**\n\n**[MANDATORY FORMATTING]**\nYou MUST conclude your report with a section titled '**Key Insights**' containing bullet points of critical findings, followed by a section titled '**Proposals to Orchestrator**'. Use these EXACT headers.",

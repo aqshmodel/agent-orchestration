@@ -157,6 +157,8 @@ export const AgisProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 'president'
             );
 
+            state.addUsage(presResponse.usage.inputChars, presResponse.usage.outputChars);
+
             if (presResponse.artifacts && presResponse.artifacts.length > 0) {
                 state.registerArtifacts(presResponse.artifacts);
             }
@@ -187,6 +189,8 @@ export const AgisProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 language,
                 'coo'
             );
+
+            state.addUsage(cooResponse.usage.inputChars, cooResponse.usage.outputChars);
 
             if (cooResponse.artifacts && cooResponse.artifacts.length > 0) {
                 state.registerArtifacts(cooResponse.artifacts);

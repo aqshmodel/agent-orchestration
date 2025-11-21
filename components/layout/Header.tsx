@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAgis } from '../../hooks/useAgis';
@@ -6,6 +7,9 @@ const Header: React.FC = () => {
     const { t, language, setLanguage } = useLanguage();
     const {
         contextChars,
+        totalInputChars,
+        totalOutputChars,
+        totalApiCalls,
         selectedModel,
         setSelectedModel,
         errorLogs,
@@ -28,7 +32,7 @@ const Header: React.FC = () => {
     return (
         <header className="text-center px-4 py-3 border-b border-gray-700/50 bg-gray-900/30 backdrop-blur-md sticky top-0 z-10 flex justify-between items-center transition-colors duration-1000">
             <div className="flex-1 flex flex-col items-start">
-            <div className="w-48">
+            <div className="w-64"> {/* Increased width for stats */}
                 <div className="flex justify-between text-[10px] text-cyan-100/80 mb-1 font-mono">
                     <span>{t.app.contextUsage}</span>
                     <span>{contextChars.toLocaleString()} {t.app.chars}</span>
@@ -36,6 +40,18 @@ const Header: React.FC = () => {
                 <div className="w-full bg-gray-700/50 rounded-full h-1.5 overflow-hidden" title={`${Math.round(usagePercentage)}% used`}>
                     <div className={`h-1.5 rounded-full ${usageColor} transition-all duration-500 shadow-[0_0_8px_rgba(34,211,238,0.6)]`} style={{ width: `${usagePercentage}%` }}></div>
                 </div>
+                
+                {/* Token Usage Stats - Horizontal Layout */}
+                <div className="mt-1 text-[9px] text-gray-400 font-mono flex flex-wrap items-center gap-x-2 leading-tight">
+                    <span className="text-purple-300 whitespace-nowrap" title="Total API Calls">Calls: {totalApiCalls}</span>
+                    <span className="text-gray-600">|</span>
+                    <span className="text-blue-300 whitespace-nowrap" title="Total Input">In: {totalInputChars.toLocaleString()}</span>
+                    <span className="text-gray-600">|</span>
+                    <span className="text-green-300 whitespace-nowrap" title="Total Output">Out: {totalOutputChars.toLocaleString()}</span>
+                    <span className="text-gray-600">|</span>
+                    <span className="opacity-70 whitespace-nowrap" title="Total Characters">Total: {(totalInputChars + totalOutputChars).toLocaleString()}</span>
+                </div>
+
                 {contextChars > 800000 && (
                     <p className="text-[10px] text-red-400 mt-1 animate-pulse">{t.app.contextHigh}</p>
                 )}

@@ -50,6 +50,10 @@ const App: React.FC = () => {
     );
   }
 
+  // Check if project has started (User has sent first message)
+  // If president has more than 1 message (initial system greeting + user message), it started.
+  const isProjectStarted = (messages['president']?.length || 0) > 1;
+
   // Extract Leadership Team (First 4 agents: President, COO, CoS, Orchestrator)
   const allLeadershipAgents = AGENTS.slice(0, 4);
   
@@ -112,6 +116,19 @@ const App: React.FC = () => {
       return isActive ? `${base} ring-1 ring-white/30` : base;
   };
 
+  // --- Hybrid Scroll Layout Logic ---
+  // Early phases: Fixed Leadership area, independent scroll for Grid.
+  // Later phases: Full page scroll (Leadership flows with content).
+  const isLeadershipFixed = currentPhase === 'strategy' || currentPhase === 'execution';
+
+  const mainContainerClass = isLeadershipFixed
+      ? "flex-grow flex flex-col mt-[15px] mx-[15px] py-2 sm:p-4 gap-4 overflow-hidden" // Locked container
+      : "flex-grow flex flex-col mt-[15px] mx-[15px] py-2 sm:p-4 gap-4 overflow-y-auto pb-32 custom-scrollbar"; // Scrollable container
+
+  const agentGridWrapperClass = isLeadershipFixed
+      ? "flex-grow overflow-y-auto pb-32 custom-scrollbar min-h-0" // Independent scroll
+      : "flex-grow"; // Natural flow
+
   return (
     <div className="relative h-screen w-screen overflow-hidden text-gray-100 font-sans">
       {/* Background Layers */}
@@ -124,10 +141,10 @@ const App: React.FC = () => {
         <ModalManager />
         <Header />
         
-        <main className="flex-grow p-2 sm:p-4 grid grid-rows-[auto_1fr] gap-4 min-h-0">
+        {/* Main Area */}
+        <main className={mainContainerClass}>
             {/* Leadership Section */}
-            {/* Grid Size: md:grid-cols-2 makes them span 2 standard units (50% width) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 transition-all duration-500">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 transition-all duration-500 pb-4 flex-shrink-0">
                 {visibleLeadershipTeam.map(agent => {
                     // Final Report Logic:
                     // - CoS: Never shows final report preview (drafting focus).
@@ -159,6 +176,8 @@ const App: React.FC = () => {
                               onPreview={previewHandler}
                               // Leadership cards are always expanded/prominent
                               isCompact={false} 
+                              // Force small height if project hasn't started
+                              forceInitialHeight={!isProjectStarted}
                             />
                         </div>
                     );
@@ -166,7 +185,9 @@ const App: React.FC = () => {
             </div>
             
             {/* Specialist Grid */}
-            <AgentGrid />
+            <div className={agentGridWrapperClass}>
+                <AgentGrid />
+            </div>
         </main>
 
         <UserInput />

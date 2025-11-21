@@ -1,9 +1,8 @@
 
-
 import React, { useRef, useEffect, useState } from 'react';
 import { Agent, Message, Artifact } from '../../types';
 import { AGENT_COLORS, TEAM_COLORS } from '../../constants';
-import { generateDocxBlob, htmlToMarkdown } from '../../utils/reportGenerator';
+import { htmlToMarkdown } from '../../utils/reportGenerator';
 import { extractHtmlFromContent } from '../../utils/contentProcessor';
 import { useSmartScroll } from '../../hooks/useSmartScroll';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -14,6 +13,7 @@ interface AgentCardProps {
   agent: Agent;
   isCompact?: boolean;
   isExpanded?: boolean;
+  forceInitialHeight?: boolean; // New prop for initial state
   // Data Props (Decoupled from Context for Memoization)
   messages: Message[];
   isThinking: boolean;
@@ -30,6 +30,7 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
   agent, 
   isCompact, 
   isExpanded, 
+  forceInitialHeight,
   messages, 
   isThinking, 
   finalReport, 
@@ -46,6 +47,10 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
   const prevMessagesLength = useRef(agentMessages.length);
   const { t, language } = useLanguage();
   
+  // View Mode State: 'report' or 'history'
+  // If finalReport exists, default to 'report', otherwise 'history'
+  const [viewMode, setViewMode] = useState<'report' | 'history'>('history');
+
   // Get translated names safely
   const transAgent = t.agents[agent.id] || { name: agent.name, role: agent.role };
   const transTeam = t.teams[agent.team] || agent.team;
@@ -54,18 +59,27 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
   const htmlPreviewCode = extractHtmlFromContent(finalReportContent);
   const isHtmlReport = !!htmlPreviewCode;
 
-  // Smart Scroll Logic
+  // Update view mode when report is generated
+  useEffect(() => {
+      if (isHtmlReport) {
+          setViewMode('report');
+      } else {
+          setViewMode('history');
+      }
+  }, [isHtmlReport]);
+
+  // Smart Scroll Logic (Only active when showing history)
   const { scrollContainerRef, handleScroll, scrollToBottom } = useSmartScroll({
       dependency: agentMessages,
-      enabled: !isCompact
+      enabled: !isCompact && viewMode === 'history'
   });
 
   // Additional scroll trigger for Thinking state
   useEffect(() => {
-      if (isThinking && !isCompact) {
+      if (isThinking && !isCompact && viewMode === 'history') {
           scrollToBottom();
       }
-  }, [isThinking, isCompact, scrollToBottom]);
+  }, [isThinking, isCompact, viewMode, scrollToBottom]);
 
   // Highlight animation on new message
   useEffect(() => {
@@ -99,15 +113,6 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
     downloadBlob(blob, `AGIS-Report-${new Date().toISOString().slice(0, 10)}.md`);
   };
 
-  const handleDownloadWord = () => {
-      if (!finalReportContent) return;
-      const sourceContent = htmlPreviewCode || finalReportContent;
-      const blob = generateDocxBlob(sourceContent, 'A.G.I.S. Report', language);
-      if (blob) {
-          downloadBlob(blob, `AGIS-Report-${new Date().toISOString().slice(0, 10)}.docx`);
-      }
-  };
-  
   const handleDownloadHtml = () => {
       if (!htmlPreviewCode) return;
       const blob = new Blob([htmlPreviewCode], { type: 'text/html;charset=utf-8' });
@@ -141,20 +146,27 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
     </div>
   );
 
-  // Dynamic height classes
-  const heightClass = isExpanded 
-    ? 'h-full' 
-    : isCompact 
-        ? 'h-auto justify-center' 
-        : 'h-[240px]';
+  // Dynamic height classes logic
+  let heightClass = 'h-[280px] md:h-[320px] xl:h-[360px]'; // Default responsive size
+  
+  if (isExpanded) {
+      heightClass = 'h-full';
+  } else if (isCompact) {
+      heightClass = 'h-auto justify-center';
+  } else if (forceInitialHeight) {
+      heightClass = 'h-[200px]'; // Fixed height for initial state
+  }
   
   const showExpandButton = agentMessages.length > 0;
   
   // Generate ID if not provided
   const domId = id || `agent-card-${agent.id}`;
 
+  // Determine what to render in the content area
+  const shouldShowReport = isHtmlReport && viewMode === 'report';
+
   return (
-    <div id={domId} className={`flex flex-col border ${teamColor.border} rounded-lg ${heightClass} glass-effect ${teamColor.bg} ${isThinking ? 'thinking-border-animation ring-1 ring-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.3)]' : ''} ${!isThinking && highlight && !isCompact ? 'flash-border-animation' : ''} transition-all duration-300 ${!isExpanded ? 'hover:-translate-y-1' : ''}`}>
+    <div id={domId} className={`flex flex-col border ${teamColor.border} rounded-lg ${heightClass} glass-effect ${teamColor.bg} ${isThinking ? 'thinking-border-animation ring-1 ring-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.3)]' : ''} ${!isThinking && highlight && !isCompact ? 'flash-border-animation' : ''} transition-all duration-500 ${!isExpanded ? 'hover:-translate-y-1' : ''}`}>
       <div className={`p-3 ${!isCompact || isExpanded ? `border-b ${teamColor.border}` : ''} flex justify-between items-center sticky top-0 z-10 ${teamColor.bg.replace('/60', '/95')} backdrop-blur-md rounded-t-lg`}>
         <div className="flex items-center gap-2 w-full overflow-hidden">
            {isThinking && (
@@ -176,8 +188,8 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
                 <span className="text-[10px] font-bold text-cyan-400 bg-cyan-900/80 px-1.5 py-0.5 rounded border border-cyan-700 animate-pulse">{t.agentCard.thinking}</span>
             )}
             
-            {/* Preview Button (Enhanced) */}
-            {htmlPreviewCode && (!isCompact || isExpanded) && onPreview && (
+            {/* Preview Button (Only when showing report) */}
+            {shouldShowReport && (!isCompact || isExpanded) && onPreview && (
                 <button
                     onClick={handlePreviewClick}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1 px-2 rounded-md transition-colors flex items-center mr-1 shadow-lg shadow-emerald-900/50"
@@ -222,13 +234,6 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
                               <span className="bg-gray-700 text-[10px] p-1 rounded mr-3 font-mono w-10 text-center">.md</span>
                               {t.agentCard.saveMd}
                           </button>
-                          <button 
-                             onClick={handleDownloadWord}
-                             className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center border-t border-gray-700 whitespace-nowrap"
-                          >
-                              <span className="bg-blue-900 text-blue-200 text-[10px] p-1 rounded mr-3 font-mono w-10 text-center">.docx</span>
-                              {t.agentCard.saveWord}
-                          </button>
                       </div>
                   )}
                 </div>
@@ -258,15 +263,26 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
             )}
         </div>
       </div>
+      
       {(!isCompact || isExpanded) && (
         <div 
             ref={scrollContainerRef} 
             onScroll={handleScroll} 
             className="flex-grow p-3 overflow-y-auto text-sm space-y-2 relative min-h-0"
         >
-            {/* Special handling for HTML Report */}
-            {isHtmlReport ? (
-                <div className="bg-gray-900/50 border border-dashed border-gray-600 rounded p-6 flex flex-col items-center justify-center text-center min-h-[200px]">
+            {shouldShowReport ? (
+                <div className="bg-gray-900/50 border border-dashed border-gray-600 rounded p-6 flex flex-col items-center justify-center text-center min-h-[200px] relative">
+                    {/* View Toggle for Report */}
+                    <button 
+                        onClick={() => setViewMode('history')}
+                        className="absolute top-2 right-2 text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-400 px-2 py-1 rounded border border-gray-600 transition-colors flex items-center gap-1"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {language === 'en' ? 'Show History' : '履歴を表示'}
+                    </button>
+
                     <div className="text-4xl mb-2">📄</div>
                     <h4 className="text-lg font-bold text-gray-200 mb-2">Final Report Generated</h4>
                     <p className="text-sm text-gray-400 mb-4">
@@ -286,17 +302,32 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
                     )}
                 </div>
             ) : (
-                /* Normal Markdown Rendering for other agents */
-                agentMessages.map((msg, index) => (
-                    <div key={index} className={`${msg.sender === 'user' ? 'text-cyan-300' : 'text-gray-200'}`}>
-                        <p className="font-mono text-[10px] text-gray-500 mb-0.5 opacity-70">{msg.timestamp} - {msg.sender.toUpperCase()}</p>
-                        <div>
-                            <MarkdownRenderer content={msg.content} artifacts={artifacts} />
+                <div className="relative">
+                    {/* View Toggle for History (only if report exists) */}
+                    {isHtmlReport && (
+                        <div className="sticky top-0 flex justify-end z-10 mb-2">
+                            <button 
+                                onClick={() => setViewMode('report')}
+                                className="text-[10px] bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 px-2 py-1 rounded border border-emerald-700 transition-colors flex items-center gap-1 shadow-md backdrop-blur-sm"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                {language === 'en' ? 'Back to Report' : 'レポートに戻る'}
+                            </button>
                         </div>
-                    </div>
-                ))
+                    )}
+                    {agentMessages.map((msg, index) => (
+                        <div key={index} className={`${msg.sender === 'user' ? 'text-cyan-300' : 'text-gray-200'}`}>
+                            <p className="font-mono text-[10px] text-gray-500 mb-0.5 opacity-70">{msg.timestamp} - {msg.sender.toUpperCase()}</p>
+                            <div>
+                                <MarkdownRenderer content={msg.content} artifacts={artifacts} />
+                            </div>
+                        </div>
+                    ))}
+                </div>
             )}
-            {isThinking && <TypingIndicator />}
+            {isThinking && viewMode === 'history' && <TypingIndicator />}
         </div>
       )}
     </div>
@@ -311,7 +342,8 @@ const arePropsEqual = (prevProps: AgentCardProps, nextProps: AgentCardProps) => 
     prevProps.isCompact !== nextProps.isCompact ||
     prevProps.isExpanded !== nextProps.isExpanded ||
     prevProps.isThinking !== nextProps.isThinking ||
-    prevProps.finalReport !== nextProps.finalReport
+    prevProps.finalReport !== nextProps.finalReport ||
+    prevProps.forceInitialHeight !== nextProps.forceInitialHeight // Check new prop
   ) {
     return false;
   }

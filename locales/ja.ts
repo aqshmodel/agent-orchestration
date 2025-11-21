@@ -5,7 +5,7 @@ import { Team, TranslationResource } from '../types';
 export const ja: TranslationResource = {
   app: {
     title: 'A.G.I.S.',
-    subtitle: 'AI GENERATIVE INTELLIGENCE SYSTEM',
+    subtitle: 'ARTIFICIAL GENERAL INTELLIGENCE SYSTEM',
     contextUsage: 'コンテキスト使用量',
     chars: '文字',
     contextHigh: 'メモリ使用量が高負荷です。対話履歴のクリアを推奨します。',
@@ -216,7 +216,7 @@ export const ja: TranslationResource = {
 
 1. **詳細化:** 各セクションの記述量を2倍に増やしてください。抽象的な概念ではなく、具体的な数値、事例、ステップバイステップの手順を追加してください。
 2. **網羅性:** 見落としている視点や、予想される反論への回答を追加してください。
-3. **ビジュアル:** グラフや図解のプレースホルダーを増やし、視覚的にもリッチにしてください。
+3. **ビジュアル:** レイアウト崩れは厳禁。見やすさを重視。
 
 **これは推敲プロセスです。前回の出力を土台にしつつ、それを遥かに凌駕する品質の「決定版」を出力してください。**
 `,
@@ -244,7 +244,8 @@ CoSからのドラフトを確認してください:
 {draftText}
 
 [SYSTEM ORDER: 最終判定]
-これが最終確認です。品質が高ければ承認してください。承認する場合は "APPROVE::" と出力してください。
+これが最終確認です。品質が高ければ承認してください。
+承認する場合は、必ず **"AGIS_CMD::APPROVE_REPORT"** と出力して、システムに完了シグナルを送ってください。
 `,
       cosDefaultInstruction: "最終レポートを作成してください。",
       systemInstructionOverride: "", 

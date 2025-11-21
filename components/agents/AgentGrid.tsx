@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { AGENTS, TEAM_COLORS } from '../../constants';
 import { Agent, Team } from '../../types';
@@ -40,10 +41,11 @@ const AgentGrid: React.FC = () => {
         (specialistAgentsByTeam[teamName] || []).filter(agent => selectedAgents.has(agent.id))
     );
 
+    // Removed "overflow-y-auto" and "min-h-0" to allow parent (App.tsx main) to handle scrolling
     return (
-        <div className="min-h-0 overflow-y-auto p-4 pb-40 -m-2 sm:-m-4 custom-scrollbar">
+        <div className="-m-2 sm:-m-4">
             {isInitialState ? (
-                <div className="space-y-4">
+                <div className="space-y-4 p-4">
                     {teamOrder.map(teamName => (
                         <div key={teamName}>
                             <h3 className={`text-sm font-bold p-2 rounded-t-lg ${TEAM_COLORS[teamName].bg} ${TEAM_COLORS[teamName].text} border-b-2 ${TEAM_COLORS[teamName].border}`}>
@@ -67,7 +69,7 @@ const AgentGrid: React.FC = () => {
                     ))}
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4">
                     {allSelectedSpecialists.map(agent => (
                         <AgentCard
                             key={agent.id}

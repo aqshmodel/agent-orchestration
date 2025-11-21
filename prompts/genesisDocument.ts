@@ -6,7 +6,7 @@ export const GENESIS_DOCUMENT = `
 
 ## 1. プロジェクト名
 
-**A.G.I.S. (AI Generative Intelligence System)**
+**A.G.I.S. (ARTIFICIAL GENERAL INTELLIGENCE SYSTEM)**
 自律的に目標を志向する知性の群れ。
 
 ---

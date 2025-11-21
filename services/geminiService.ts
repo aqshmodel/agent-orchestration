@@ -1,5 +1,6 @@
 
 
+
 import { GoogleGenAI, FunctionDeclaration, Tool, FunctionCall, Part, Modality } from "@google/genai";
 import { translations } from "../locales/translations";
 import { Artifact, FileData } from "../types";
@@ -129,10 +130,27 @@ const buildContents = (prompt: string, context?: string, knowledgeBase?: string,
   return parts;
 };
 
+// Helper to calculate total characters in parts
+const countInputChars = (parts: Part[]): number => {
+    let count = 0;
+    parts.forEach(part => {
+        if (part.text) {
+            count += part.text.length;
+        }
+        // For images/binary, we can't strictly count tokens as chars, but we could approximate or ignore.
+        // User asked for "chars of prompt", so text length is the primary metric.
+    });
+    return count;
+};
+
 export type StreamResponseResult = {
     text: string;
     functionCalls: FunctionCall[];
     artifacts: Artifact[];
+    usage: {
+        inputChars: number;
+        outputChars: number;
+    };
 };
 
 // Generate Image using Gemini 2.5 Flash Image (nano banana)
@@ -183,8 +201,11 @@ export const fixMermaidCode = async (code: string, errorMessage: string): Promis
         const prompt = `
 Fix the following Mermaid diagram code which caused a syntax error.
 The error is commonly caused by unescaped parentheses '()', brackets '[]', or braces '{}' inside node labels or edge labels.
-**RULE: Enclose ALL labels containing special characters or Japanese text in double quotes.**
-(e.g., Change A[Text(Example)] to A["Text(Example)"])
+
+**MANDATORY FIX RULE:**
+Enclose ALL node labels containing special characters (parentheses, brackets) or Japanese text in double quotes.
+- BAD: A[CRM (Salesforce)]
+- GOOD: A["CRM (Salesforce)"]
 
 Error Message:
 ${errorMessage}
@@ -231,7 +252,8 @@ export const generateResponseStream = async (
 ): Promise<StreamResponseResult> => {
   try {
     const contents = buildContents(prompt, context, knowledgeBase, files, language);
-    
+    const inputChars = countInputChars(contents) + systemPrompt.length; // Include system prompt length roughly
+
     const configTools: Tool[] = [];
     
     // Get Model Characteristics
@@ -350,7 +372,15 @@ export const generateResponseStream = async (
       }
     }
     
-    return { text: fullText, functionCalls, artifacts };
+    return { 
+        text: fullText, 
+        functionCalls, 
+        artifacts, 
+        usage: { 
+            inputChars: inputChars, 
+            outputChars: fullText.length 
+        } 
+    };
 
   } catch (error) {
     console.error("Error generating response stream:", error);

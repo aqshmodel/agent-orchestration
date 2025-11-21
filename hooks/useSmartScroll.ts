@@ -15,13 +15,23 @@ interface UseSmartScrollResult {
 export const useSmartScroll = ({ dependency, enabled = true }: UseSmartScrollProps): UseSmartScrollResult => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isUserScrolling = useRef(false);
+  const ignoreScrollRef = useRef(false); // Flag to ignore scroll events caused by auto-scrolling
   const prevDependencyRef = useRef(dependency);
 
   const handleScroll = () => {
+    // If the scroll event was triggered by scrollToBottom, ignore it
+    if (ignoreScrollRef.current) {
+        ignoreScrollRef.current = false;
+        return;
+    }
+
     if (scrollContainerRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-      // If the user is near the bottom (within 50px), we consider them NOT manually scrolling away
-      const atBottom = scrollHeight - scrollTop - clientHeight < 50;
+      // Increased threshold to 150px for robustness against layout shifts (e.g. images loading)
+      // Using Math.ceil/abs to handle sub-pixel rendering issues
+      const distanceToBottom = Math.abs(scrollHeight - clientHeight - scrollTop);
+      const atBottom = distanceToBottom < 150;
+      
       isUserScrolling.current = !atBottom;
     }
   };
@@ -29,10 +39,19 @@ export const useSmartScroll = ({ dependency, enabled = true }: UseSmartScrollPro
   const scrollToBottom = () => {
     if (scrollContainerRef.current && !isUserScrolling.current) {
       const { scrollHeight, clientHeight } = scrollContainerRef.current;
+      
+      // Set flag to ignore the immediate scroll event triggered by this action
+      ignoreScrollRef.current = true;
+      
       scrollContainerRef.current.scrollTo({
         top: scrollHeight - clientHeight,
         behavior: 'smooth'
       });
+      
+      // Safety cleanup for flag in case smooth scroll takes time
+      setTimeout(() => {
+          ignoreScrollRef.current = false;
+      }, 1000);
     }
   };
 

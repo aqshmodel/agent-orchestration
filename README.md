@@ -1,7 +1,7 @@
 
-# A.G.I.S. - AI Generative Intelligence System
+# A.G.I.S. - ARTIFICIAL GENERAL INTELLIGENCE SYSTEM
 
-**A.G.I.S. (AI Generative Intelligence System)** は、Google Gemini API (Gemini 3.0 Pro / 2.5 Pro / Flash) を活用した、自律型階層的マルチエージェント組織シミュレーションシステムです。
+**A.G.I.S. (ARTIFICIAL GENERAL INTELLIGENCE SYSTEM)** は、Google Gemini API (Gemini 3.0 Pro / 2.5 Pro / Flash) を活用した、自律型階層的マルチエージェント組織シミュレーションシステムです。
 
 1人の「プレジデントAI」と60人の「専門家エージェント」が連携し、ユーザーの複雑な課題に対して、戦略立案から実行計画、成果物作成までを自律的に行います。
 

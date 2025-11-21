@@ -68,7 +68,7 @@ const UserInput: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-8 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-full md:max-w-4xl z-40 flex flex-col items-center pointer-events-none">
+    <div className="fixed bottom-10 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-full md:max-w-5xl z-40 flex flex-col items-center pointer-events-none">
        {isInputLoading && currentStatus && (
         <div className="pointer-events-auto mb-4 text-xs font-mono text-cyan-300 bg-gray-900/90 border border-cyan-500/50 px-4 py-2 rounded-full shadow-[0_0_10px_rgba(34,211,238,0.3)] backdrop-blur-md animate-fade-in flex items-center gap-2">
            <div className="w-2 h-2 bg-cyan-400 rounded-full animate-ping"></div>
@@ -77,7 +77,7 @@ const UserInput: React.FC = () => {
       )}
       
       <div className="pointer-events-auto w-full bg-gray-900/95 backdrop-blur-xl border border-cyan-500/30 rounded-2xl input-glow transition-all duration-300">
-        <form onSubmit={handleSubmit} className="p-3 relative flex flex-col justify-center min-h-[64px]">
+        <form onSubmit={handleSubmit} className="p-3 pb-0 relative flex flex-col justify-center min-h-[64px]">
           {selectedFiles.length > 0 && (
             <div className="px-2 pt-2 pb-2 flex flex-wrap gap-2 max-h-32 overflow-y-auto custom-scrollbar border-b border-gray-800 mb-2">
               {selectedFiles.map((file, index) => (
@@ -153,7 +153,7 @@ const UserInput: React.FC = () => {
               onCompositionStart={() => setIsComposing(true)}
               onCompositionEnd={() => setIsComposing(false)}
               placeholder={isListening ? t.input.listening : t.input.placeholder}
-              className="flex-grow bg-transparent border-none text-gray-100 placeholder-gray-400 focus:ring-0 resize-none py-3 pl-2 max-h-[200px] custom-scrollbar leading-relaxed caret-cyan-400 self-center"
+              className="flex-grow bg-transparent border-none text-gray-100 placeholder-gray-400 focus:ring-0 resize-none p-3 max-h-[200px] custom-scrollbar leading-relaxed caret-cyan-400 self-center"
               rows={1}
               disabled={isInputLoading}
               onKeyDown={(e) => {

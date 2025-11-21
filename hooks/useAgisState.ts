@@ -145,6 +145,11 @@ export const useAgisState = () => {
     uiState.processingRef.current = false;
     uiState.setCurrentPhase('strategy');
     uiState.setRefinementCount(0);
+    
+    // Reset Usage Stats
+    uiState.setTotalInputChars(0);
+    uiState.setTotalOutputChars(0);
+    uiState.setTotalApiCalls(0);
   };
 
   return {
@@ -187,6 +192,12 @@ export const useAgisState = () => {
     previewCode: uiState.previewCode, setPreviewCode: uiState.setPreviewCode,
     processingRef: uiState.processingRef,
     sharedKnowledgeBaseRef: uiState.sharedKnowledgeBaseRef,
+    
+    // Usage Stats
+    totalInputChars: uiState.totalInputChars,
+    totalOutputChars: uiState.totalOutputChars,
+    totalApiCalls: uiState.totalApiCalls,
+    addUsage: uiState.addUsage,
     
     // Actions mixed
     addErrorLog: uiState.addErrorLog,
