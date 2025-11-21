@@ -121,12 +121,15 @@ const App: React.FC = () => {
   // Later phases: Full page scroll (Leadership flows with content).
   const isLeadershipFixed = currentPhase === 'strategy' || currentPhase === 'execution';
 
+  // Main Container: Controls overall page structure and spacing
   const mainContainerClass = isLeadershipFixed
-      ? "flex-grow flex flex-col mt-[15px] mx-[15px] py-2 sm:p-4 gap-4 overflow-hidden" // Locked container
-      : "flex-grow flex flex-col mt-[15px] mx-[15px] py-2 sm:p-4 gap-4 overflow-y-auto pb-32 custom-scrollbar"; // Scrollable container
+      ? "flex-grow flex flex-col pt-8 px-8 gap-4 overflow-hidden w-full" // Locked container
+      : "flex-grow flex flex-col pt-8 px-8 gap-4 overflow-y-auto pb-32 custom-scrollbar w-full"; // Scrollable container
 
+  // Grid Wrapper: Specific scrolling for agent grid in fixed mode
+  // pt-6 added to ensure top glow/shadow of cards is not clipped by overflow container
   const agentGridWrapperClass = isLeadershipFixed
-      ? "flex-grow overflow-y-auto pb-32 custom-scrollbar min-h-0" // Independent scroll
+      ? "flex-grow overflow-y-auto pb-32 pt-6 custom-scrollbar min-h-0 -mx-8 px-8" // Independent scroll with padding compensation
       : "flex-grow"; // Natural flow
 
   return (
@@ -144,7 +147,7 @@ const App: React.FC = () => {
         {/* Main Area */}
         <main className={mainContainerClass}>
             {/* Leadership Section */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 transition-all duration-500 pb-4 flex-shrink-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 transition-all duration-500 pb-2 flex-shrink-0">
                 {visibleLeadershipTeam.map(agent => {
                     // Final Report Logic:
                     // - CoS: Never shows final report preview (drafting focus).
@@ -165,7 +168,7 @@ const App: React.FC = () => {
                     // to the card header to prevent premature "Final Report" labels/buttons.
 
                     return (
-                        <div key={agent.id} className={getActiveRingClass(agent.id) + " rounded-lg"}>
+                        <div key={agent.id} className={getActiveRingClass(agent.id) + " rounded-lg relative"}>
                             <AgentCard 
                               agent={agent}
                               messages={messages[agent.id] || []}

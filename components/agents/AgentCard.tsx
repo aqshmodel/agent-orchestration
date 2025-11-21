@@ -147,7 +147,7 @@ const AgentCardComponent: React.FC<AgentCardProps> = ({
   );
 
   // Dynamic height classes logic
-  let heightClass = 'h-[280px] md:h-[320px] xl:h-[360px]'; // Default responsive size
+  let heightClass = 'h-[280px] md:h-[300px] xl:h-[320px] [min-width:1920px]:h-[360px]'; // Default responsive size
   
   if (isExpanded) {
       heightClass = 'h-full';

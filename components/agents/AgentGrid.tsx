@@ -41,17 +41,17 @@ const AgentGrid: React.FC = () => {
         (specialistAgentsByTeam[teamName] || []).filter(agent => selectedAgents.has(agent.id))
     );
 
-    // Removed "overflow-y-auto" and "min-h-0" to allow parent (App.tsx main) to handle scrolling
     return (
-        <div className="-m-2 sm:-m-4">
+        // p-6 to create space for shadows, -m-6 to pull content back to original width alignment
+        <div className="p-6 -m-6">
             {isInitialState ? (
-                <div className="space-y-4 p-4">
+                <div className="space-y-6">
                     {teamOrder.map(teamName => (
-                        <div key={teamName}>
-                            <h3 className={`text-sm font-bold p-2 rounded-t-lg ${TEAM_COLORS[teamName].bg} ${TEAM_COLORS[teamName].text} border-b-2 ${TEAM_COLORS[teamName].border}`}>
+                        <div key={teamName} className="rounded-lg overflow-visible">
+                            <h3 className={`text-sm font-bold p-3 rounded-t-lg ${TEAM_COLORS[teamName].bg} ${TEAM_COLORS[teamName].text} border-b-2 ${TEAM_COLORS[teamName].border}`}>
                                 {t.teams[teamName] || teamName}
                             </h3>
-                            <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 p-2 rounded-b-lg ${TEAM_COLORS[teamName].bg}`}>
+                            <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 p-4 rounded-b-lg ${TEAM_COLORS[teamName].bg}`}>
                                 {(specialistAgentsByTeam[teamName] || []).map(agent => (
                                     <AgentCard
                                         key={agent.id}
@@ -69,7 +69,7 @@ const AgentGrid: React.FC = () => {
                     ))}
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {allSelectedSpecialists.map(agent => (
                         <AgentCard
                             key={agent.id}
